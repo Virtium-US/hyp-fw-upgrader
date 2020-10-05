@@ -1,5 +1,7 @@
 # hyp-fw-upgrader
 
+A cross-platform tool for upgrading firmware for Hyperstone USB products.
+
 ## Getting Started
 
 ```
