@@ -33,3 +33,6 @@
 
 # User created directories
 build/
+
+# misc
+.vscode/

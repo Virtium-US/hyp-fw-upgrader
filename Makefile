@@ -40,7 +40,7 @@ SOURCES			+= \
 OBJECTS			= $(patsubst %.cpp, $(BUILD_DIR)/%.o, $(SOURCES))
 
 .PHONY: dirs all clean
-all: dirs $(BUILD_DIR)/$(TARGET) postbuild
+all: dirs $(BUILD_DIR)/$(TARGET)
 
 dirs:
 	@echo "Create directories"
@@ -55,10 +55,6 @@ $(BUILD_DIR)/$(TARGET): $(OBJECTS)
 	@echo "Linking: $@"
 	@$(CXX) -o $@ $^ $(LFLAGS) $(DEFINES) $(LIBS)
 	@echo "Library file: $@"
-
-.PHONY: postbuild
-postbuild:
-	@cp -rf $(BUILD_DIR)/$(TARGET) ../
 
 clean:
 	@echo "Clean objects"
