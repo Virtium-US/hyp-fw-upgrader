@@ -14,6 +14,7 @@ CFLAGS			= -I. -Iinclude -Isrc/include -I$(ROOT)/common
 # Files
 SOURCES			+= \
 	src/main.cpp \
+	src/FirmwareUpdater.cpp \
 	src/include/StorageKitAlignedBuffer.cpp \
 	src/include/StorageKitBufferParser.cpp \
 	src/include/StorageKitParser.cpp \

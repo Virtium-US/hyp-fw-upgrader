@@ -2,26 +2,17 @@
 #include <signal.h>
 #include <string.h>
 #include <vector>
-#include <StorageKitStorageProtocol.h>
-#include <StorageKitScsiProtocol.h>
-#include <StorageKitScsiCommandDesc.h>
-#include <StorageKitU9VcCommandDesc.h>
+
+#include "FirmwareUpdater.h"
 
 int main(int argc, char** argv) {
-
     // TODO let user specific device path in the command line args
-    char* userDevicePath = "/dev/sdb";
+    FirmwareUpdater* updater = new FirmwareUpdater("/dev/sdb");
+    FirmwareVersionInfo info = updater->readFirmwareVersion();
 
-    SKBaseDeviceInfo* deviceInfo = SKStorageProtocol::scan(userDevicePath);
-    SKScsiProtocol* scsiInterface = new SKScsiProtocol(deviceInfo->devicePath, deviceInfo->deviceHandle);
+    printf("%c%c%c%c%c%c\n", info.fwVersionDate[0], info.fwVersionDate[1], info.fwVersionDate[2], info.fwVersionDate[3], info.fwVersionDate[4], info.fwVersionDate[5]);
 
-    SKAlignedBuffer *buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
-    std::cout << "scsi command status: " << scsiInterface->issueScsiCommand(SKU9VcCommandDesc::createFirmwareUpdateExecute(), buffer) << std::endl;
+    printf("%s\n", info.controllerRevisionIdString);
 
-    std::cout << "Data in buffer:" << std::endl;
-    printf("buffer size in bytes: %d\n", buffer->GetSizeInByte());
-    for (int i = 0; i < SECTOR_SIZE_IN_BYTES; i++) {
-        printf("%x", buffer->ToDataBuffer()[i]);
-    }
-    std::cout << std::endl;
+    delete updater;
 }
