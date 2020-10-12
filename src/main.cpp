@@ -16,11 +16,12 @@ int main(int argc, char** argv) {
     SKScsiProtocol* scsiInterface = new SKScsiProtocol(deviceInfo->devicePath, deviceInfo->deviceHandle);
 
     SKAlignedBuffer *buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
-    std::cout << "status: " << scsiInterface->issueScsiCommand(SKU9VcCommandDesc::createReadFirmwareVersion(), buffer) << std::endl;
+    std::cout << "scsi command status: " << scsiInterface->issueScsiCommand(SKU9VcCommandDesc::createFirmwareUpdateExecute(), buffer) << std::endl;
 
-    std::cout << "Buffer Data:" << std::endl;
+    std::cout << "Data in buffer:" << std::endl;
+    printf("buffer size in bytes: %d\n", buffer->GetSizeInByte());
     for (int i = 0; i < SECTOR_SIZE_IN_BYTES; i++) {
-        std::cout << (char) buffer->ToDataBuffer()[i];
+        printf("%x", buffer->ToDataBuffer()[i]);
     }
     std::cout << std::endl;
 }
