@@ -20,6 +20,14 @@ SKScsiCommandDesc* SKU9VcCommandDesc::createTrimAddressRangeDesc()
     return cmdDesc;
 }
 
+SKScsiCommandDesc* SKU9VcCommandDesc::createReadFirmwareVersion()
+{
+    // Vendor Command Code = CS=0, CC=16, R/W=1
+    SKScsiCommandDesc* cmdDesc = new SKU9VcCommandDesc(READ_FROM_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    cmdDesc->inputFields.Cdb[5] = 0x21;
+    return cmdDesc;
+}
+
 void SKU9VcCommandDesc::prepareCommandHypVc(const U8 &cmdSet, const U8 &cmdCode, const U16 &sectorNumber, const SKHypVcDirection &direction)
 {
     this->inputFields.CommandHypVc.CmdSet = cmdSet;

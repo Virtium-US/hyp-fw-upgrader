@@ -17,6 +17,7 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
 
   public:
     static SKScsiCommandDesc* createTrimAddressRangeDesc();
+    static SKScsiCommandDesc* createReadFirmwareVersion();
 
   public:
     void prepareCommandHypVc(const U8 &cmdSet, const U8 &cmdCode, const U16 &sectorNumber, const SKHypVcDirection &direction);

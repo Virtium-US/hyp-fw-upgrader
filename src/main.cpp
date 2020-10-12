@@ -5,6 +5,7 @@
 #include <StorageKitStorageProtocol.h>
 #include <StorageKitScsiProtocol.h>
 #include <StorageKitScsiCommandDesc.h>
+#include <StorageKitU9VcCommandDesc.h>
 
 int main(int argc, char** argv) {
 
@@ -15,7 +16,7 @@ int main(int argc, char** argv) {
     SKScsiProtocol* scsiInterface = new SKScsiProtocol(deviceInfo->devicePath, deviceInfo->deviceHandle);
 
     SKAlignedBuffer *buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
-    scsiInterface->issueScsiCommand(SKScsiCommandDesc::createInquiryDesc(SKInquiryPageCode::SKDeviceIdentification), buffer);
+    std::cout << "status: " << scsiInterface->issueScsiCommand(SKU9VcCommandDesc::createReadFirmwareVersion(), buffer) << std::endl;
 
     std::cout << "Buffer Data:" << std::endl;
     for (int i = 0; i < SECTOR_SIZE_IN_BYTES; i++) {
