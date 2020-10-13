@@ -5,23 +5,7 @@
 #include <StorageKitScsiProtocol.h>
 #include <StorageKitU9VcCommandDesc.h>
 
-/*
-FirmwareVersionInfo is the data returned by the Read Firmware Version VSC.
-
-0..5 Firmware version date (year, month, day)
-6..7 Controller revision ID as character string
-8..11 –
-12..15 Firmware revision ID as character string (e.g. “1.03”)
-16..19 Additional firmware version information text
-20..21 –
-22 Controller sub-revision ID
-23 Controller revision ID
-24..27 Flash specific firmware feature bit vector 
-28..31 General firmware feature bit vector
-32..39 Reserved
-40..43 Firmware management data structure version 
-44..511 –
-*/
+// FirmwareVersionInfo is the data returned by the Read Firmware Version VSC.
 struct FirmwareVersionInfo
 {
     U8 fwVersionDate[6]; // 0..5 Firmware version date (year, month, day)
