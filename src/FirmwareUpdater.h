@@ -22,7 +22,6 @@ FirmwareVersionInfo is the data returned by the Read Firmware Version VSC.
 40..43 Firmware management data structure version 
 44..511 –
 */
-#pragma pack(push, 1)
 struct FirmwareVersionInfo
 {
     U8 fwVersionDate[6]; // 0..5 Firmware version date (year, month, day)
@@ -39,7 +38,6 @@ struct FirmwareVersionInfo
     U8 fwManagement[4]; // 40..43 Firmware management data structure version 
     U8 unused_3[468]; // 44..511 –
 };
-#pragma pack(pop)
 
 class FirmwareUpdater {
     private:

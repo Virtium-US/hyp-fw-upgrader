@@ -20,6 +20,22 @@ SKScsiCommandDesc* SKU9VcCommandDesc::createTrimAddressRangeDesc()
     return cmdDesc;
 }
 
+SKScsiCommandDesc* SKU9VcCommandDesc::createSetAddressExtension(const U16 extensionAddress)
+{
+    // Vendor Command Code - CS=0, SN=extensionAddress, CC=32, R/W=0
+    SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(WRITE_TO_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(0, extensionAddress & 0xFFFF, 32, 0));
+    return cmdDesc;
+}
+
+SKScsiCommandDesc* SKU9VcCommandDesc::createSetBaseAddress()
+{
+    // Vendor Command Code – CS=16, CC=32, R/W=0
+    SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(WRITE_TO_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(16, 0, 32, 0));
+    return cmdDesc;
+}
+
 SKScsiCommandDesc* SKU9VcCommandDesc::createReadFirmwareVersion()
 {
     // Vendor Command Code - CS=0, CC=16, R/W=1
@@ -31,13 +47,17 @@ SKScsiCommandDesc* SKU9VcCommandDesc::createReadFirmwareVersion()
 SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdatePrepare() 
 {
     // Vendor Command Code - CS=2, CC=40, R/W=0
-    return 0;
+    SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(WRITE_TO_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(2, 0, 40, 0));
+    return cmdDesc;
 }
 
 SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdateTransfer() 
 {
     // Vendor Command Code - CS=2, CC=41, R/W=0
-    return 0;
+    SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(WRITE_TO_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(2, 0, 41, 0));
+    return cmdDesc;
 }
 
 SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdateExecute() 
@@ -58,7 +78,7 @@ void SKU9VcCommandDesc::prepareCommandHypVc(const U8 &cmdSet, const U8 &cmdCode,
 }
 
 // Creates a command code with the following format: CS = [31..2] | SN = [23..8] | CC = [7..1] | R/W = [0]
-const U32 SKU9VcCommandDesc::buildCommandCode(const U32 CS, const U32 SN, const U32 CC, const U32 RW) 
+U32 SKU9VcCommandDesc::buildCommandCode(const U32 CS, const U32 SN, const U32 CC, const U32 RW) 
 {
     return CS << 24 | SN << 8 | CC << 1 | RW;
 }

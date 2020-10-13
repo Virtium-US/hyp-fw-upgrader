@@ -17,6 +17,8 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
 
   public:
     static SKScsiCommandDesc* createTrimAddressRangeDesc();
+    static SKScsiCommandDesc* createSetAddressExtension(const U16 extensionAddress);
+    static SKScsiCommandDesc* createSetBaseAddress();
     static SKScsiCommandDesc* createReadFirmwareVersion();
     static SKScsiCommandDesc* createFirmwareUpdatePrepare();
     static SKScsiCommandDesc* createFirmwareUpdateTransfer();
@@ -26,7 +28,7 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
     void prepareCommandHypVc(const U8 &cmdSet, const U8 &cmdCode, const U16 &sectorNumber, const SKHypVcDirection &direction);
 
   private:
-    static const U32 buildCommandCode(const U32 CS, const U32 SN, const U32 CC, const U32 RW);
+    static U32 buildCommandCode(const U32 CS, const U32 SN, const U32 CC, const U32 RW);
     static void setCommandCode(U8* cdb, U32 cmdCode);
 };
 
