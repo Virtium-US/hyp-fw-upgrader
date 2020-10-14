@@ -4,6 +4,8 @@
 
 #include "FirmwareUpdater.h"
 
+using namespace updater;
+
 FirmwareUpdater::FirmwareUpdater(char* devPath) 
 {
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
@@ -18,20 +20,38 @@ FirmwareUpdater::~FirmwareUpdater()
 }
 
 // Issues the VC to read firmware version information
-FirmwareVersionInfo FirmwareUpdater::readFirmwareVersion()
+FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
 {
-    // prepare command data
+    // prepare and execute the command data
     SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     SKScsiCommandDesc* desc = SKU9VcCommandDesc::createReadFirmwareVersion();
     this->scsiInterface->issueScsiCommand(desc, buffer);
 
     // format returned data
-    FirmwareVersionInfo info;
-    memcpy(&info, buffer->ToDataBuffer(), sizeof(FirmwareVersionInfo));
+    FWVersionInfo_t info;
+    memcpy(&info, buffer->ToDataBuffer(), sizeof(FWVersionInfo_t));
 
     // clean up
     delete buffer;
     delete desc;
 
     return info;
+}
+
+// Issues the VC to inspect information about the target device
+TargetInfo_t FirmwareUpdater::readTargetInfo()
+{
+    // prepare and execute the command
+    SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    SKScsiCommandDesc* desc = SKU9VcCommandDesc::createTargetInfo();
+    this->scsiInterface->issueScsiCommand(desc, buffer);
+
+    // format returned data
+    TargetInfo_t targetInfo;
+    memcpy(&targetInfo, buffer->ToDataBuffer(), sizeof(TargetInfo_t));
+
+    delete buffer;
+    delete desc;
+
+    return targetInfo;
 }

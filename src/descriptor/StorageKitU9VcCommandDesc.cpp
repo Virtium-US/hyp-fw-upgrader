@@ -20,6 +20,14 @@ SKScsiCommandDesc* SKU9VcCommandDesc::createTrimAddressRangeDesc()
     return cmdDesc;
 }
 
+SKScsiCommandDesc* SKU9VcCommandDesc::createTargetInfo()
+{
+    // Vendor Command Code – CS=16, CC=127, R/W=1
+    SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(READ_FROM_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(16, 0, 127, 1));
+    return cmdDesc;
+}
+
 SKScsiCommandDesc* SKU9VcCommandDesc::createSetAddressExtension(const U16 extensionAddress)
 {
     // Vendor Command Code - CS=0, SN=extensionAddress, CC=32, R/W=0

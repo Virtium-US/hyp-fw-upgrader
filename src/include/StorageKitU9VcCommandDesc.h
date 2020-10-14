@@ -17,6 +17,7 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
 
   public:
     static SKScsiCommandDesc* createTrimAddressRangeDesc();
+    static SKScsiCommandDesc* createTargetInfo();
     static SKScsiCommandDesc* createSetAddressExtension(const U16 extensionAddress);
     static SKScsiCommandDesc* createSetBaseAddress();
     static SKScsiCommandDesc* createReadFirmwareVersion();
