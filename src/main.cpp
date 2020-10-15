@@ -21,4 +21,9 @@ int main(int argc, char** argv) {
     printf("flash id 1: 0x%x\n", targetInfo.flashId_1);
     printf("card type: 0x%x\n", targetInfo.cardType);
     printf("interleave Factor: 0x%x\n", targetInfo.interleaveFactor);
+
+    // clean up
+    delete updater;
+
+    return 0;
 }

@@ -1,10 +1,21 @@
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
+#include <fstream>
 
 #include "FirmwareUpdater.h"
 
 using namespace updater;
+
+UpdateExeception::UpdateExeception(std::string msg, const char* path)
+{
+    this->msg = msg.append(" at path \"").append(path).append("\"");
+}
+
+const char* UpdateExeception::what() const throw()
+{
+    return msg.c_str();
+}
 
 FirmwareUpdater::FirmwareUpdater(char* devPath) 
 {
@@ -54,4 +65,20 @@ TargetInfo_t FirmwareUpdater::readTargetInfo()
     delete desc;
 
     return targetInfo;
+}
+
+// reads the dd.txt file at the supplied path on the file system
+DeviceDescription_t FirmwareUpdater::loadDDFile(const char* path)
+{
+    std::fstream fs;
+    fs.open(path, std::fstream::in);
+
+    if (!fs.is_open()) {
+        throw updater::UpdateExeception("cannot open config file", path);
+    }
+
+    fs.close();
+
+    DeviceDescription_t dd;
+    return dd;
 }

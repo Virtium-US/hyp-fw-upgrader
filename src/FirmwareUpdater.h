@@ -60,6 +60,22 @@ typedef struct
     U32 interleaveFactor; // 24..27 Interleave factor
 } TargetInfo_t;
 
+// the data contained by a dd.txt file for a Hyperstone firmware archive
+typedef struct
+{
+    /* data */
+} DeviceDescription_t;
+
+class UpdateExeception : public std::exception
+{
+    private:
+        std::string msg;
+
+    public:
+        UpdateExeception(std::string msg, const char* path);
+        const char* what() const throw ();
+};
+
 // wrapper class to abstract away the details of a firmware upgrade for Ux devices
 class FirmwareUpdater {
     private:
@@ -72,6 +88,7 @@ class FirmwareUpdater {
     public:
         FWVersionInfo_t readFirmwareVersion();
         TargetInfo_t readTargetInfo();
+        DeviceDescription_t loadDDFile(const char* path);
     //private:
 
 };
