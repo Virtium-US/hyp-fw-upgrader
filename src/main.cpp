@@ -5,22 +5,31 @@
 
 #include "FirmwareUpdater.h"
 
+using namespace updater;
+
 int main(int argc, char** argv) {
     // TODO let user specific device path in the command line args
-    updater::FirmwareUpdater* updater = new updater::FirmwareUpdater("/dev/sdb");
-    updater::FWVersionInfo_t info = updater->readFirmwareVersion();
+    FirmwareUpdater* updater = new FirmwareUpdater("/dev/sdb");
+    FWVersionInfo_t info = updater->readFirmwareVersion();
 
     printf("%c%c%c%c%c%c\n", info.fwVersionDate[0], info.fwVersionDate[1], info.fwVersionDate[2], info.fwVersionDate[3], info.fwVersionDate[4], info.fwVersionDate[5]);
 
     printf("%s\n", info.controllerRevisionIdString);
 
-    updater::TargetInfo_t targetInfo = updater->readTargetInfo();
+    TargetInfo_t targetInfo = updater->readTargetInfo();
     
     printf("signature word: 0x%x\n", targetInfo.signatureWord);
     printf("flash id 0: 0x%x\n", targetInfo.flashId_0);
     printf("flash id 1: 0x%x\n", targetInfo.flashId_1);
     printf("card type: 0x%x\n", targetInfo.cardType);
     printf("interleave Factor: 0x%x\n", targetInfo.interleaveFactor);
+
+    try {
+        updater->loadDDData("/home/bypie5/Documents/Virtium/hsfmt/U9/dd.txt");
+        updater->findDDEntry(targetInfo, "/home/bypie5/Documents/Virtium/hsfmt/U9/dd.txt");
+    } catch(std::exception &e) {
+        std::cout << e.what() << std::endl;
+    }
 
     // clean up
     delete updater;

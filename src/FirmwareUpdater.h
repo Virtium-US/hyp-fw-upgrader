@@ -8,6 +8,8 @@
 namespace updater 
 {
 
+#define MAX_LINE_LEN 1024
+
 // the data returned by the Read Firmware Version VSC.
 typedef struct 
 {
@@ -43,7 +45,7 @@ typedef struct
 /* 
 * data returned by the Target Info VSC. 
 *
-* NOTE: NOT ALL FIELDS ARE PRESENT. Refer to the Target Info section in the Hyperstone U9 
+* NOTE: NOT ALL FIELDS ARE PRESENT. Refer to the Target Info section in the Hyperstone Ux 
 * Firmware Manual for more information
 */
 typedef struct
@@ -60,11 +62,40 @@ typedef struct
     U32 interleaveFactor; // 24..27 Interleave factor
 } TargetInfo_t;
 
+/*
+* a line from a dd file. for example:
+* ; M60A MT29F4G08ABADA
+*       2cdc90950000 1 1 4096 80 256 0x01FF 0000000A m11f1 am11i1 m11p1 1 160 2 4 100000
+* Device description lines consist of fields separated by white space. These fields are:
+* - the flash memory device ID (six bytes),
+* - the flash memory interface type (1 for legacy, 2 for Toggle and 4 for ONFI-2),
+* - the interleave factor (1 or 2) that applies to the firmware,
+* - the number of blocks on the flash memory chip,
+* - the maximum number of defect blocks per flash memory chip,
+* - the number of sectors (512 bytes) per flash memory block,
+* - a threshold setting for the wear leveling, in hex,
+* - a 32 bit number corresponding to certain flash memory device features, in hex,
+* - the names of the firmware, anchor block and preformat hex files for this flash memory device and interleave setting,
+* - four fields that define the controller and flash operating frequency,
+* - the target number of erase cycles per flash block, for the SMART calculations.
+*
+* NOTE: NOT ALL FIELDS ARE PRESENT. Refer to the Device Description File section in the 
+* Hyperstone Ux Firmware Manual for more information
+*/
+typedef struct
+{
+    /* data */
+    U8 flashDeviceId[6];
+    U8 deviceType;
+    U8 interleaveFactor;
+} DeviceDescriptionEntry_t;
+
+
 // the data contained by a dd.txt file for a Hyperstone firmware archive
 typedef struct
 {
     /* data */
-} DeviceDescription_t;
+} DeviceDescriptionData_t;
 
 class UpdateExeception : public std::exception
 {
@@ -88,9 +119,11 @@ class FirmwareUpdater {
     public:
         FWVersionInfo_t readFirmwareVersion();
         TargetInfo_t readTargetInfo();
-        DeviceDescription_t loadDDFile(const char* path);
-    //private:
-
+        const DeviceDescriptionData_t loadDDData(const char* path);
+        const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, const char* path);
+    
+    private:
+        const std::string findLineInDD(const char* path, const char* find);
 };
 
 }

@@ -67,18 +67,95 @@ TargetInfo_t FirmwareUpdater::readTargetInfo()
     return targetInfo;
 }
 
-// reads the dd.txt file at the supplied path on the file system
-DeviceDescription_t FirmwareUpdater::loadDDFile(const char* path)
+// loads the common data in the dd.txt file specified by the given path
+const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
+{
+    std::string entryLine = findLineInDD(path, "2cdc90950000");
+    std::cout << entryLine << std::endl;
+
+    DeviceDescriptionData_t dd;
+    return dd;
+}
+
+// finds the target's device description line in the dd.txt file specified by the given path
+const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &info, const char* path) 
+{
+    // construct a hex string representation of flash id from the supplied target into
+    char flashIdStr[13]; // flashId is 6 bytes, so we need 12 bytes + 1 (\0) to encode it as a hex string
+    sprintf(flashIdStr, "%x%x", info.flashId_1, info.flashId_0);
+
+    // change the endianness of the hex string
+    for (int i = 0; i <= 4; i += 2) {
+        int j = 10 - i;
+        char tempA = flashIdStr[j];
+        char tempB = flashIdStr[j+1];
+
+        flashIdStr[j] = flashIdStr[i];
+        flashIdStr[j+1] = flashIdStr[i+1];
+        flashIdStr[i] = tempA;
+        flashIdStr[i+1] = tempB;
+    }
+
+    char interfaceType[2]; // lsb of info.cardType + \0
+    sprintf(interfaceType, "%x", (U8) (info.cardType >> 8));
+
+    char interleaveFactor[2]; // lsb of info.interleaveFactor + \0
+    sprintf(interleaveFactor, "%x", (U8) (info.interleaveFactor >> 24));
+
+    std::cout << flashIdStr << " " << interfaceType << " " << interleaveFactor << std::endl;
+
+    char searchString[MAX_LINE_LEN];
+    sprintf(searchString, "%s %s %s", flashIdStr, interfaceType, interleaveFactor);
+    
+    std::string entryLine = findLineInDD(path, searchString);
+    std::cout << "found: " << entryLine << std::endl;
+
+    DeviceDescriptionEntry_t dde;
+    return dde;
+}
+
+// searches the dd.txt file at 'path' for the first line that has a start that matches 'find'
+const std::string FirmwareUpdater::findLineInDD(const char* path, const char* find)
 {
     std::fstream fs;
     fs.open(path, std::fstream::in);
 
     if (!fs.is_open()) {
-        throw updater::UpdateExeception("cannot open config file", path);
+        throw updater::UpdateExeception("cannot open file", path);
+    }
+
+    const unsigned int findLen = strlen(find);
+
+    // find a line that has a start that matches the value of 'find'
+    char line[MAX_LINE_LEN];
+    while(fs.getline(line, MAX_LINE_LEN)) {
+
+        // only check lines that are the same size or longer than 'find'
+        if (strlen(line) >= findLen) {
+            
+            // skip white space in the current line (left trim)
+            int offset = 0;
+            while (line[offset] == ' ') {
+                offset++;
+            }
+            
+            int matching = 0;
+            for (int i = 0; i < findLen; i++) {
+                if (find[i] == line[i + offset]) {
+                    matching++;
+                }
+            }
+
+            // found a line that has a beginning that matches the value of 'find'
+            if (matching == findLen) {
+                fs.close();
+                return &line[offset]; // left-trimmed line
+            }
+        }
     }
 
     fs.close();
 
-    DeviceDescription_t dd;
-    return dd;
+    // did not find a matching line
+    return "";
 }
