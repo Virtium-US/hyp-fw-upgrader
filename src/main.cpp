@@ -5,16 +5,17 @@
 
 #include "FirmwareUpdater.h"
 
-using namespace updater;
-
 int main(int argc, char** argv) {
+    // takes in a path to a Hyperstone firmware archive and the path to the device to upgrade
     // TODO let user specific device path in the command line args
     const char* devPath = "/dev/sdb";
-    const char* ddPath = "/home/bypie5/Documents/Virtium/hsfmt/U9/dd.txt";
+    std::string ddPath = "/home/bypie5/Documents/Virtium/hsfmt/U9/dd.txt";
 
-    FirmwareUpdater* updater = new FirmwareUpdater(devPath, ddPath);
+    updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
     
     updater->inspectCurrentDevice();
+
+    updater->update();
 
     // clean up
     delete updater;

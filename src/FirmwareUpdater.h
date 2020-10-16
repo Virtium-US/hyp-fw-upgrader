@@ -31,8 +31,8 @@ typedef struct
 // the data supplied to the Firmware Update Prepare VSC
 typedef struct
 {
-    U32 sectorsInFirstFW;        // Number n of sectors in the first firmware part (0..129)
-    U32 sectorsInSecondFW;       // Number m of sectors in the second firmware part (0..127)
+    U32 sectorsInFirstFW;        // Number n of sectors in the first firmware part (0..257)
+    U32 sectorsInSecondFW;       // Number m of sectors in the second firmware part (0..255)
     U32 sectorsAnchorProg;       // Number k of Anchor program sectors (0..1)
     U32 clearMaskSpecificFW;     // Bits to be cleared in flash specific firmware features
     U32 setMaskSpecificFW;       // Bits to be set in flash specific firmware features
@@ -106,6 +106,7 @@ class UpdateExeception : public std::exception
 
     public:
         UpdateExeception(std::string msg, const char* value);
+        UpdateExeception(std::string msg, std::string value);
         const char* what() const throw ();
 };
 
@@ -122,21 +123,25 @@ class FirmwareUpdater {
     private:
         SKScsiProtocol* scsiInterface;
         DeviceInfo_t currDevice;
+        std::string archivePath;
 
     public:
-        FirmwareUpdater(const char* devPath, const char* configPath);
+        FirmwareUpdater(const char* devPath, std::string configPath);
         ~FirmwareUpdater();
 
     public:
         void inspectCurrentDevice();
+        void update();
     
     private:
-        const std::string findLineInDD(const char* path, const char* find);
-        const std::string locateWord(const std::string &str, int word);
         const FWVersionInfo_t readFirmwareVersion();
         const TargetInfo_t readTargetInfo();
-        const DeviceDescriptionData_t loadDDData(const char* path);
-        const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, const char* path);
+        const DeviceDescriptionData_t loadDDData(std::string path);
+        const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, std::string path);
+        const std::string findLineInDD(std::string path, const char* find);
+        const std::string locateWord(const std::string &str, int word);
+        const U32 hexStringToU32(const char* str);
+        const U32 sectorsInFile(std::string pathOnDisk);
 };
 
 }

@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <fstream>
+#include <sstream>
+#include <limits>
 
 #include "FirmwareUpdater.h"
 
@@ -12,18 +14,27 @@ UpdateExeception::UpdateExeception(std::string msg, const char* value)
     this->msg = msg.append("\"").append(value).append("\"");
 }
 
+UpdateExeception::UpdateExeception(std::string msg, std::string value)
+{
+    this->msg = msg.append("\"").append(value).append("\"");
+}
+
 const char* UpdateExeception::what() const throw()
 {
     return msg.c_str();
 }
 
-FirmwareUpdater::FirmwareUpdater(const char* devPath, const char* configPath) 
+FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath) 
 {
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
     this->scsiInterface = new SKScsiProtocol(devInfo->devicePath, devInfo->deviceHandle);
     
     const TargetInfo_t targetInfo = readTargetInfo(); 
     this->currDevice = {readFirmwareVersion(), loadDDData(configPath), findDDEntry(targetInfo, configPath)};
+
+    // remove the "dd.txt" part from the config path to get the archive path
+    archivePath = std::string(configPath);
+    archivePath = archivePath.substr(0, archivePath.length() - 6);
 
     delete devInfo;
 }
@@ -46,7 +57,76 @@ void FirmwareUpdater::inspectCurrentDevice()
     printf("flash device id: %s\n", currDevice.ddEntry.flashDeviceId);
     printf("specific fw features: %s\n", currDevice.ddEntry.specificFwFeatures);
     printf("firmware file name: %s\n", currDevice.ddEntry.firmwareFileName);
-    printf("achor file name: %s\n", currDevice.ddEntry.anchorFileName);
+    printf("anchor file name: %s\n", currDevice.ddEntry.anchorFileName);
+}
+
+// issues the VCs needed to perform the firmware upgrade process
+void FirmwareUpdater::update()
+{
+    /* 
+    this sequence of VCs is taken from the hsfmt source code. the firmware manual also 
+    explains this process. i will suggest you to refer to the manual AND source code. 
+    you have to do a whole lot more reading to understand the big picture by using the 
+    manual alone. 
+
+    i'll summarize the firmware update process below:
+
+    - there are four phases (0..3)
+        - phase #0: assemble - perpares the data to send over the VCs
+        - phase #1: prepare  - issues the "update perpare" VC (makes a data buffer on the 
+                               drive)
+        - phase #2: transfer - uses a series of "update transfer" VCs to send firmware data
+        - phase #3: execute  - issues the "update execute" VC that triggers drive to use 
+                               the data buffer to updae itself
+    */
+
+    // ===phase #0: assemble===
+    FWUpdatePrepareData_t prepareData = {};
+
+    // sectors in files (first fw, second fw, and anchor)
+
+    // first
+    char pathToFW[MAX_LINE_LEN];
+    sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
+    prepareData.sectorsInFirstFW = sectorsInFile(pathToFW);
+    std::cout << "sectors in fw: " << prepareData.sectorsInFirstFW << std::endl;
+
+    // second
+
+    // anchor
+    char pathToAnchor[MAX_LINE_LEN];
+    sprintf(pathToAnchor, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
+    prepareData.sectorsAnchorProg = sectorsInFile(pathToAnchor);
+    std::cout << "sectors in anchor: " << prepareData.sectorsAnchorProg << std::endl;
+
+    // specific fw mask and value
+    prepareData.clearMaskSpecificFW = 0xffffffff;
+    prepareData.setMaskSpecificFW = hexStringToU32(currDevice.ddEntry.specificFwFeatures);
+    printf("hex val of specific fw features: 0x%x\n", prepareData.setMaskSpecificFW);
+
+    // general fw mask and value
+    prepareData.clearMaskGeneralFW = 0xffffffff;
+    prepareData.setMaskGeneralFW = hexStringToU32(currDevice.ddData.generalFwFeatures);
+    printf("hex val of general fw features: 0x%x\n", prepareData.setMaskGeneralFW);
+
+    // driver strength mask and value
+    prepareData.clearMaskDriverStrength = 0xffffffff;
+    prepareData.setMaskDriverStrength = hexStringToU32(currDevice.ddData.drvStrengths);
+    printf("hex val of drive strength: 0x%x\n", prepareData.setMaskDriverStrength);
+    
+    // ===phase #1: prepare===
+
+    // write_set_address_extension(0)
+    // write_firmware_update_prepare()
+
+    // ===phase #2 transfer===
+
+    // write_set_base_address()
+    // write_firmware_update_transfer()
+
+    // ===phase #3: execute===
+
+    // read_firmware_update_execute()
 }
 
 // Issues the VC to read firmware version information
@@ -87,7 +167,7 @@ const TargetInfo_t FirmwareUpdater::readTargetInfo()
 }
 
 // loads the common data in the dd.txt file specified by the given path
-const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
+const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
 {
     // locate general fw features (the -features flag in dd.txt)
     const std::string rawFeaturesLine = findLineInDD(path, "-features=");
@@ -114,7 +194,7 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
 }
 
 // finds the target's device description line in the dd.txt file specified by the given path
-const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &info, const char* path) 
+const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &info, std::string path) 
 {
     // construct a hex string representation of flash id from the supplied target into
     char flashIdStr[13]; // flashId is 6 bytes, so we need 12 bytes + 1 ("\0") to encode it as a hex string
@@ -163,11 +243,12 @@ const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &
 * searches the dd.txt file at 'path' for the first line that has a start that matches 'find'.
 * left trims (removes white space to the left of) the string
 */
-const std::string FirmwareUpdater::findLineInDD(const char* path, const char* find)
+const std::string FirmwareUpdater::findLineInDD(std::string path, const char* find)
 {
     std::fstream fs;
-    fs.open(path, std::fstream::in);
 
+    // TODO: I don't think this program needs to open up a new stream every time this function is called
+    fs.open(path, std::fstream::in);
     if (!fs.is_open()) {
         throw updater::UpdateExeception("cannot open file", path);
     }
@@ -233,4 +314,28 @@ const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
     }
     
     return "";
+}
+
+const U32 FirmwareUpdater::hexStringToU32(const char* str)
+{
+    std::stringstream ss;
+    ss << std::hex << str;
+
+    U32 val;
+    ss >> val;
+    return val;
+}
+
+const U32 FirmwareUpdater::sectorsInFile(std::string pathOnDisk)
+{
+    std::fstream fs;
+    fs.open(pathOnDisk, std::fstream::in | std::fstream::binary);
+
+    if (!fs.is_open())
+        throw updater::UpdateExeception("cannot open file", pathOnDisk);
+
+    fs.ignore( std::numeric_limits<std::streamsize>::max() );
+    fs.close();
+    
+    return fs.gcount()/SECTOR_SIZE_IN_BYTES;
 }
