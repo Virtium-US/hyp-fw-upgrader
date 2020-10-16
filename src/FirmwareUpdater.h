@@ -84,12 +84,12 @@ typedef struct
 */
 typedef struct
 {
-    /* data */
-    U8 flashDeviceId[6];
+    U8 flashDeviceId[13];
     U8 deviceType;
     U8 interleaveFactor;
+    U8 firmwareFileName[32];
+    U8 anchorFileName[32];
 } DeviceDescriptionEntry_t;
-
 
 // the data contained by a dd.txt file for a Hyperstone firmware archive
 typedef struct
@@ -113,7 +113,7 @@ class FirmwareUpdater {
         SKScsiProtocol* scsiInterface;
 
     public:
-        FirmwareUpdater(char* devPath);
+        FirmwareUpdater(const char* devPath);
         ~FirmwareUpdater();
 
     public:
@@ -124,6 +124,7 @@ class FirmwareUpdater {
     
     private:
         const std::string findLineInDD(const char* path, const char* find);
+        const std::string locateWord(const std::string &str, int word);
 };
 
 }

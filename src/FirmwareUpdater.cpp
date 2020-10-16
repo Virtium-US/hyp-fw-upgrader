@@ -17,7 +17,7 @@ const char* UpdateExeception::what() const throw()
     return msg.c_str();
 }
 
-FirmwareUpdater::FirmwareUpdater(char* devPath) 
+FirmwareUpdater::FirmwareUpdater(const char* devPath) 
 {
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
     this->scsiInterface = new SKScsiProtocol(devInfo->devicePath, devInfo->deviceHandle);
@@ -70,9 +70,6 @@ TargetInfo_t FirmwareUpdater::readTargetInfo()
 // loads the common data in the dd.txt file specified by the given path
 const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
 {
-    std::string entryLine = findLineInDD(path, "2cdc90950000");
-    std::cout << entryLine << std::endl;
-
     DeviceDescriptionData_t dd;
     return dd;
 }
@@ -81,7 +78,7 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
 const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &info, const char* path) 
 {
     // construct a hex string representation of flash id from the supplied target into
-    char flashIdStr[13]; // flashId is 6 bytes, so we need 12 bytes + 1 (\0) to encode it as a hex string
+    char flashIdStr[13]; // flashId is 6 bytes, so we need 12 bytes + 1 ("\0") to encode it as a hex string
     sprintf(flashIdStr, "%x%x", info.flashId_1, info.flashId_0);
 
     // change the endianness of the hex string
@@ -96,25 +93,31 @@ const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &
         flashIdStr[i+1] = tempB;
     }
 
-    char interfaceType[2]; // lsb of info.cardType + \0
-    sprintf(interfaceType, "%x", (U8) (info.cardType >> 8));
-
-    char interleaveFactor[2]; // lsb of info.interleaveFactor + \0
-    sprintf(interleaveFactor, "%x", (U8) (info.interleaveFactor >> 24));
-
-    std::cout << flashIdStr << " " << interfaceType << " " << interleaveFactor << std::endl;
-
+    // construct search string (<flashIdStr> <interfaceType> <interleaveFactor> like "98d7a03277d6 1 2")
     char searchString[MAX_LINE_LEN];
-    sprintf(searchString, "%s %s %s", flashIdStr, interfaceType, interleaveFactor);
+    sprintf(searchString, "%s %x %x", flashIdStr, (info.cardType >> 8), (info.interleaveFactor >> 24));
     
-    std::string entryLine = findLineInDD(path, searchString);
-    std::cout << "found: " << entryLine << std::endl;
+    // locate the raw string data in dd.txt
+    const std::string entryLine = findLineInDD(path, searchString);
 
+    /*if (entryLine.empty()) {
+        return;
+    }*/
+
+    // convert raw string entry into well formatted data type
     DeviceDescriptionEntry_t dde;
+    memcpy(dde.flashDeviceId, flashIdStr, sizeof(flashIdStr));
+
+    std::cout << "word found: " << locateWord(entryLine, 0) << std::endl;
+    std::cout << "word found: " << locateWord(entryLine, 1) << std::endl;
+
     return dde;
 }
 
-// searches the dd.txt file at 'path' for the first line that has a start that matches 'find'
+/*
+* searches the dd.txt file at 'path' for the first line that has a start that matches 'find'.
+* left trims (removes white space to the left of) the string
+*/
 const std::string FirmwareUpdater::findLineInDD(const char* path, const char* find)
 {
     std::fstream fs;
@@ -123,6 +126,8 @@ const std::string FirmwareUpdater::findLineInDD(const char* path, const char* fi
     if (!fs.is_open()) {
         throw updater::UpdateExeception("cannot open file", path);
     }
+
+    std::cout << "searching file at \"" << path << "\" for line that starts with \"" << find << "\"..." << std::endl;
 
     const unsigned int findLen = strlen(find);
 
@@ -149,6 +154,7 @@ const std::string FirmwareUpdater::findLineInDD(const char* path, const char* fi
             // found a line that has a beginning that matches the value of 'find'
             if (matching == findLen) {
                 fs.close();
+                std::cout << "found: " << &line[offset] << std::endl;
                 return &line[offset]; // left-trimmed line
             }
         }
@@ -157,5 +163,33 @@ const std::string FirmwareUpdater::findLineInDD(const char* path, const char* fi
     fs.close();
 
     // did not find a matching line
+    return "";
+}
+
+const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
+{
+    int i = 0;
+    // skip white space
+    while(str[i] == ' ') {
+        i++;
+    }
+
+    int currWord = 0;
+    int start = i;
+    for (i; i < str.length(); i++) {
+        // find starting of word
+        if (currWord != word) {
+            if (str[i] == ' ') {
+                currWord++;
+                start = i;
+            }
+        } else {
+            // find end of word
+            if (str[i] == ' ') {
+                return str.substr(start, i);
+            }
+        }
+    }
+    
     return "";
 }
