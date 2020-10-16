@@ -17,11 +17,14 @@ const char* UpdateExeception::what() const throw()
     return msg.c_str();
 }
 
-FirmwareUpdater::FirmwareUpdater(const char* devPath) 
+FirmwareUpdater::FirmwareUpdater(const char* devPath, const char* configPath) 
 {
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
     this->scsiInterface = new SKScsiProtocol(devInfo->devicePath, devInfo->deviceHandle);
     
+    const TargetInfo_t targetInfo = readTargetInfo(); 
+    this->currDevice = {readFirmwareVersion(), loadDDData(configPath), findDDEntry(targetInfo, configPath)};
+
     delete devInfo;
 }
 
@@ -30,8 +33,24 @@ FirmwareUpdater::~FirmwareUpdater()
     delete scsiInterface;
 }
 
+// prints a list of the fields that are needed to perform firmware upgrade for the current device
+void FirmwareUpdater::inspectCurrentDevice() 
+{
+    // ugly... someone needs to fix this lol
+    printf("current fw: %c%c%c%c%c%c\n", currDevice.info.fwVersionDate[0], currDevice.info.fwVersionDate[1], currDevice.info.fwVersionDate[2], currDevice.info.fwVersionDate[3], currDevice.info.fwVersionDate[4], currDevice.info.fwVersionDate[5]);
+    printf("controller revision: %c%c\n", currDevice.info.controllerRevisionIdString[0], currDevice.info.controllerRevisionIdString[1]);
+    
+    // make that ^^^ look like this vvv
+    printf("general fw features: %s\n", currDevice.ddData.generalFwFeatures);
+    printf("driver strengths: %s\n", currDevice.ddData.drvStrengths);
+    printf("flash device id: %s\n", currDevice.ddEntry.flashDeviceId);
+    printf("specific fw features: %s\n", currDevice.ddEntry.specificFwFeatures);
+    printf("firmware file name: %s\n", currDevice.ddEntry.firmwareFileName);
+    printf("achor file name: %s\n", currDevice.ddEntry.anchorFileName);
+}
+
 // Issues the VC to read firmware version information
-FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
+const FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
 {
     // prepare and execute the command data
     SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
@@ -50,7 +69,7 @@ FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
 }
 
 // Issues the VC to inspect information about the target device
-TargetInfo_t FirmwareUpdater::readTargetInfo()
+const TargetInfo_t FirmwareUpdater::readTargetInfo()
 {
     // prepare and execute the command
     SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);

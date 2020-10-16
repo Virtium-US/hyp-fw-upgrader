@@ -109,24 +109,34 @@ class UpdateExeception : public std::exception
         const char* what() const throw ();
 };
 
+// all of the data collected from a configuration file (dd.txt) and target info on the device
+typedef struct
+{
+    FWVersionInfo_t info;
+    DeviceDescriptionData_t ddData;
+    DeviceDescriptionEntry_t ddEntry;
+} DeviceInfo_t;
+
 // wrapper class to abstract away the details of a firmware upgrade for Ux devices
 class FirmwareUpdater {
     private:
         SKScsiProtocol* scsiInterface;
+        DeviceInfo_t currDevice;
 
     public:
-        FirmwareUpdater(const char* devPath);
+        FirmwareUpdater(const char* devPath, const char* configPath);
         ~FirmwareUpdater();
 
     public:
-        FWVersionInfo_t readFirmwareVersion();
-        TargetInfo_t readTargetInfo();
-        const DeviceDescriptionData_t loadDDData(const char* path);
-        const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, const char* path);
+        void inspectCurrentDevice();
     
     private:
         const std::string findLineInDD(const char* path, const char* find);
         const std::string locateWord(const std::string &str, int word);
+        const FWVersionInfo_t readFirmwareVersion();
+        const TargetInfo_t readTargetInfo();
+        const DeviceDescriptionData_t loadDDData(const char* path);
+        const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, const char* path);
 };
 
 }
