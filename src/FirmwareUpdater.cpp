@@ -7,9 +7,9 @@
 
 using namespace updater;
 
-UpdateExeception::UpdateExeception(std::string msg, const char* path)
+UpdateExeception::UpdateExeception(std::string msg, const char* value)
 {
-    this->msg = msg.append(" at path \"").append(path).append("\"");
+    this->msg = msg.append("\"").append(value).append("\"");
 }
 
 const char* UpdateExeception::what() const throw()
@@ -70,7 +70,27 @@ TargetInfo_t FirmwareUpdater::readTargetInfo()
 // loads the common data in the dd.txt file specified by the given path
 const DeviceDescriptionData_t FirmwareUpdater::loadDDData(const char* path)
 {
-    DeviceDescriptionData_t dd;
+    // locate general fw features (the -features flag in dd.txt)
+    const std::string rawFeaturesLine = findLineInDD(path, "-features=");
+    // locate driver strength (the -drv_strengths flag in dd.txt)
+    const std::string rawDrvStrengths = findLineInDD(path, "-drv_strengths=");
+
+    // validating...
+    if (rawFeaturesLine.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", "-features=");
+    }
+
+    if (rawDrvStrengths.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", "-drv_strengths=");
+    }
+    
+    // construct well-formed data
+    DeviceDescriptionData_t dd = {};
+
+    // copies everything after '-<flag>='
+    rawFeaturesLine.substr(10).copy(dd.generalFwFeatures, rawFeaturesLine.substr(10).length());
+    rawDrvStrengths.substr(15).copy(dd.drvStrengths, rawDrvStrengths.substr(15).length());
+
     return dd;
 }
 
@@ -100,16 +120,22 @@ const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &
     // locate the raw string data in dd.txt
     const std::string entryLine = findLineInDD(path, searchString);
 
-    /*if (entryLine.empty()) {
-        return;
-    }*/
+    if (entryLine.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", searchString);
+    }
 
-    // convert raw string entry into well formatted data type
-    DeviceDescriptionEntry_t dde;
+    // locate columns
+    std::string specificFwFeatures = locateWord(entryLine, 7);
+    std::string firmwareFileName = locateWord(entryLine, 8);
+    std::string anchorFileName = locateWord(entryLine, 9);
+
+    // convert raw dd.txt entry string entry into well formatted data type
+    DeviceDescriptionEntry_t dde = {};
+
     memcpy(dde.flashDeviceId, flashIdStr, sizeof(flashIdStr));
-
-    std::cout << "word found: " << locateWord(entryLine, 0) << std::endl;
-    std::cout << "word found: " << locateWord(entryLine, 1) << std::endl;
+    specificFwFeatures.copy(dde.specificFwFeatures, specificFwFeatures.length());
+    firmwareFileName.copy(dde.firmwareFileName, firmwareFileName.length());
+    anchorFileName.copy(dde.anchorFileName, anchorFileName.length());
 
     return dde;
 }
@@ -127,11 +153,8 @@ const std::string FirmwareUpdater::findLineInDD(const char* path, const char* fi
         throw updater::UpdateExeception("cannot open file", path);
     }
 
-    std::cout << "searching file at \"" << path << "\" for line that starts with \"" << find << "\"..." << std::endl;
-
-    const unsigned int findLen = strlen(find);
-
     // find a line that has a start that matches the value of 'find'
+    const unsigned int findLen = strlen(find);
     char line[MAX_LINE_LEN];
     while(fs.getline(line, MAX_LINE_LEN)) {
 
@@ -154,7 +177,6 @@ const std::string FirmwareUpdater::findLineInDD(const char* path, const char* fi
             // found a line that has a beginning that matches the value of 'find'
             if (matching == findLen) {
                 fs.close();
-                std::cout << "found: " << &line[offset] << std::endl;
                 return &line[offset]; // left-trimmed line
             }
         }
@@ -170,7 +192,7 @@ const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
 {
     int i = 0;
     // skip white space
-    while(str[i] == ' ') {
+    while(str[i] == ' ' && i < str.length()) {
         i++;
     }
 
@@ -181,12 +203,12 @@ const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
         if (currWord != word) {
             if (str[i] == ' ') {
                 currWord++;
-                start = i;
+                start = i + 1;
             }
         } else {
             // find end of word
             if (str[i] == ' ') {
-                return str.substr(start, i);
+                return str.substr(start, i - start);
             }
         }
     }

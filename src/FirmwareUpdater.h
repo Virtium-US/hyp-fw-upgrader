@@ -75,7 +75,8 @@ typedef struct
 * - the number of sectors (512 bytes) per flash memory block,
 * - a threshold setting for the wear leveling, in hex,
 * - a 32 bit number corresponding to certain flash memory device features, in hex,
-* - the names of the firmware, anchor block and preformat hex files for this flash memory device and interleave setting,
+* - the names of the firmware, anchor block and preformat hex files for this flash memory 
+* device and interleave setting,
 * - four fields that define the controller and flash operating frequency,
 * - the target number of erase cycles per flash block, for the SMART calculations.
 *
@@ -84,17 +85,18 @@ typedef struct
 */
 typedef struct
 {
-    U8 flashDeviceId[13];
-    U8 deviceType;
-    U8 interleaveFactor;
-    U8 firmwareFileName[32];
-    U8 anchorFileName[32];
+    char flashDeviceId[13]; // I know the exact size is 13 bytes
+    char specificFwFeatures[32]; // making the assumption that 32 bytes is the max size this field can be
+    char firmwareFileName[32]; // making the assumption that 32 bytes is the max size this field can be
+    char anchorFileName[32]; // making the assumption that 32 bytes is the max size this field can be
 } DeviceDescriptionEntry_t;
 
 // the data contained by a dd.txt file for a Hyperstone firmware archive
 typedef struct
 {
-    /* data */
+    // -features=<generalFwFeatures>
+    char generalFwFeatures[32]; // making the assumption that 32 bytes is the max size this field can be
+    char drvStrengths[32]; // making the assumption that 32 bytes is the max size this field can be
 } DeviceDescriptionData_t;
 
 class UpdateExeception : public std::exception
@@ -103,7 +105,7 @@ class UpdateExeception : public std::exception
         std::string msg;
 
     public:
-        UpdateExeception(std::string msg, const char* path);
+        UpdateExeception(std::string msg, const char* value);
         const char* what() const throw ();
 };
 
