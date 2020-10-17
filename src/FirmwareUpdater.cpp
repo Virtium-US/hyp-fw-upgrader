@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <limits>
+#include <algorithm>
 
 #include "FirmwareUpdater.h"
 
@@ -84,49 +85,75 @@ void FirmwareUpdater::update()
     FWUpdatePrepareData_t prepareData = {};
 
     // sectors in files (first fw, second fw, and anchor)
-
-    // first
     char pathToFW[MAX_LINE_LEN];
-    sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
-    prepareData.sectorsInFirstFW = sectorsInFile(pathToFW);
-    std::cout << "sectors in fw: " << prepareData.sectorsInFirstFW << std::endl;
-
-    // second
-
-    // anchor
     char pathToAnchor[MAX_LINE_LEN];
+    sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
     sprintf(pathToAnchor, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
+    int totalSectorsInFw = (int) sectorsInFile(pathToFW);
+    prepareData.sectorsInFirstFW = std::min(totalSectorsInFw, 257);
+    prepareData.sectorsInSecondFW = std::min(totalSectorsInFw - prepareData.sectorsInFirstFW, (unsigned int) 255);
     prepareData.sectorsAnchorProg = sectorsInFile(pathToAnchor);
-    std::cout << "sectors in anchor: " << prepareData.sectorsAnchorProg << std::endl;
 
     // specific fw mask and value
     prepareData.clearMaskSpecificFW = 0xffffffff;
     prepareData.setMaskSpecificFW = hexStringToU32(currDevice.ddEntry.specificFwFeatures);
-    printf("hex val of specific fw features: 0x%x\n", prepareData.setMaskSpecificFW);
 
     // general fw mask and value
     prepareData.clearMaskGeneralFW = 0xffffffff;
     prepareData.setMaskGeneralFW = hexStringToU32(currDevice.ddData.generalFwFeatures);
-    printf("hex val of general fw features: 0x%x\n", prepareData.setMaskGeneralFW);
 
     // driver strength mask and value
     prepareData.clearMaskDriverStrength = 0xffffffff;
     prepareData.setMaskDriverStrength = hexStringToU32(currDevice.ddData.drvStrengths);
-    printf("hex val of drive strength: 0x%x\n", prepareData.setMaskDriverStrength);
+
+    // stuff the struct into a buffer
+    SKAlignedBuffer* perpareDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(perpareDataBuffer->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES); // initialize to 0
+    memcpy(perpareDataBuffer->ToDataBuffer(), &prepareData, sizeof(FWUpdatePrepareData_t));
     
     // ===phase #1: prepare===
 
     // write_set_address_extension(0)
+    SKScsiCommandDesc* setAddressExtension = SKU9VcCommandDesc::createSetAddressExtension(0);
+    scsiInterface->issueScsiCommand(setAddressExtension, new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES));
+
     // write_firmware_update_prepare()
+    SKScsiCommandDesc* firmwareUpdatePrepare = SKU9VcCommandDesc::createFirmwareUpdatePrepare();
+    scsiInterface->issueScsiCommand(firmwareUpdatePrepare, perpareDataBuffer);
 
     // ===phase #2 transfer===
 
     // write_set_base_address()
     // write_firmware_update_transfer()
 
+    SKAlignedBuffer* baseAddress = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(baseAddress->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES);
+    baseAddress->ToDataBuffer()[0] = 0;
+
+    SKScsiCommandDesc* setBaseAddress = SKU9VcCommandDesc::createSetBaseAddress();
+    //scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
+
+    SKScsiCommandDesc* firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer(0);
+    scsiInterface->issueScsiCommand(firmwareUpdateTransfer, perpareDataBuffer);
+    
+    for (int i = 32; i < 32 + prepareData.sectorsInFirstFW + prepareData.sectorsInSecondFW; i++) {
+        baseAddress->ToDataBuffer()[0] = i;
+        //scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
+
+        firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer(i);
+        scsiInterface->issueScsiCommand(firmwareUpdateTransfer, perpareDataBuffer);
+    }
+
     // ===phase #3: execute===
 
+    SKAlignedBuffer* updateExecuteReturnData = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(updateExecuteReturnData->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES);
+    
     // read_firmware_update_execute()
+    SKScsiCommandDesc* firmwareUpdateExecute = SKU9VcCommandDesc::createFirmwareUpdateExecute();
+    scsiInterface->issueScsiCommand(firmwareUpdateExecute, updateExecuteReturnData);
+
+    printf("firmware execute return code: %x\n", updateExecuteReturnData->ToDataBuffer()[0]);
 }
 
 // Issues the VC to read firmware version information
@@ -138,7 +165,7 @@ const FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
     this->scsiInterface->issueScsiCommand(desc, buffer);
 
     // format returned data
-    FWVersionInfo_t info;
+    FWVersionInfo_t info = {};
     memcpy(&info, buffer->ToDataBuffer(), sizeof(FWVersionInfo_t));
 
     // clean up

@@ -60,11 +60,11 @@ SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdatePrepare()
     return cmdDesc;
 }
 
-SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdateTransfer() 
+SKScsiCommandDesc* SKU9VcCommandDesc::createFirmwareUpdateTransfer(const U16 SN) 
 {
     // Vendor Command Code - CS=2, CC=41, R/W=0
     SKU9VcCommandDesc* cmdDesc = new SKU9VcCommandDesc(WRITE_TO_DEVICE, SKU9VcCommandDesc::COMMAND_U9_VC_TUNNEL, COMMAND_10);
-    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(2, 0, 41, 0));
+    setCommandCode(cmdDesc->inputFields.Cdb, buildCommandCode(2, SN & 0xffff, 41, 0));
     return cmdDesc;
 }
 
