@@ -10,6 +10,25 @@
 
 using namespace updater;
 
+U32 makeBigEndian(U32 v) {
+    U32 b0, b1, b2, b3;
+
+    b0 = (v & 0x000000ff) << 24u;
+    b1 = (v & 0x0000ff00) << 8u;
+    b2 = (v & 0x00ff0000) >> 8u;
+    b3 = (v & 0xff000000) >> 24u;
+
+    return b0 | b1 | b2 | b3;
+}
+
+void writeBigEndian(unsigned char* arr, U32 v)
+{
+    arr[0] = v >> 24;
+    arr[1] = v >> 16;
+    arr[2] = v >> 8;
+    arr[3] = v;
+}
+
 UpdateExeception::UpdateExeception(std::string msg, const char* value)
 {
     this->msg = msg.append("\"").append(value).append("\"");
@@ -90,26 +109,30 @@ void FirmwareUpdater::update()
     sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
     sprintf(pathToAnchor, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
     int totalSectorsInFw = (int) sectorsInFile(pathToFW);
-    prepareData.sectorsInFirstFW = std::min(totalSectorsInFw, 257);
-    prepareData.sectorsInSecondFW = std::min(totalSectorsInFw - prepareData.sectorsInFirstFW, (unsigned int) 255);
-    prepareData.sectorsAnchorProg = sectorsInFile(pathToAnchor);
+
+    U32 firstSectors = std::min(totalSectorsInFw, 257);
+    U32 secondSectors = std::min(totalSectorsInFw - prepareData.sectorsInFirstFW, (unsigned int) 255);
+
+    prepareData.sectorsInFirstFW = makeBigEndian(firstSectors);
+    prepareData.sectorsInSecondFW = makeBigEndian(secondSectors);
+    prepareData.sectorsAnchorProg = makeBigEndian(sectorsInFile(pathToAnchor));
 
     // specific fw mask and value
     prepareData.clearMaskSpecificFW = 0xffffffff;
-    prepareData.setMaskSpecificFW = hexStringToU32(currDevice.ddEntry.specificFwFeatures);
+    prepareData.setMaskSpecificFW = makeBigEndian(hexStringToU32(currDevice.ddEntry.specificFwFeatures));
 
     // general fw mask and value
     prepareData.clearMaskGeneralFW = 0xffffffff;
-    prepareData.setMaskGeneralFW = hexStringToU32(currDevice.ddData.generalFwFeatures);
+    prepareData.setMaskGeneralFW = makeBigEndian(hexStringToU32(currDevice.ddData.generalFwFeatures));
 
     // driver strength mask and value
     prepareData.clearMaskDriverStrength = 0xffffffff;
-    prepareData.setMaskDriverStrength = hexStringToU32(currDevice.ddData.drvStrengths);
+    prepareData.setMaskDriverStrength = makeBigEndian(hexStringToU32(currDevice.ddData.drvStrengths));
 
     // stuff the struct into a buffer
-    SKAlignedBuffer* perpareDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
-    memset(perpareDataBuffer->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES); // initialize to 0
-    memcpy(perpareDataBuffer->ToDataBuffer(), &prepareData, sizeof(FWUpdatePrepareData_t));
+    SKAlignedBuffer* prepareDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(prepareDataBuffer->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES); // initialize to 0
+    memcpy(prepareDataBuffer->ToDataBuffer(), &prepareData, sizeof(FWUpdatePrepareData_t));
     
     // ===phase #1: prepare===
 
@@ -119,29 +142,30 @@ void FirmwareUpdater::update()
 
     // write_firmware_update_prepare()
     SKScsiCommandDesc* firmwareUpdatePrepare = SKU9VcCommandDesc::createFirmwareUpdatePrepare();
-    scsiInterface->issueScsiCommand(firmwareUpdatePrepare, perpareDataBuffer);
+    scsiInterface->issueScsiCommand(firmwareUpdatePrepare, prepareDataBuffer);
 
     // ===phase #2 transfer===
 
     // write_set_base_address()
-    // write_firmware_update_transfer()
-
     SKAlignedBuffer* baseAddress = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     memset(baseAddress->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES);
-    baseAddress->ToDataBuffer()[0] = 0;
 
     SKScsiCommandDesc* setBaseAddress = SKU9VcCommandDesc::createSetBaseAddress();
-    //scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
+    scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
 
-    SKScsiCommandDesc* firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer(0);
-    scsiInterface->issueScsiCommand(firmwareUpdateTransfer, perpareDataBuffer);
+    int transferCount = 0;
+    // write_firmware_update_transfer()
+    SKScsiCommandDesc* firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer();
+    scsiInterface->issueScsiCommand(firmwareUpdateTransfer, prepareDataBuffer);
+    transferCount++;
     
-    for (int i = 32; i < 32 + prepareData.sectorsInFirstFW + prepareData.sectorsInSecondFW; i++) {
-        baseAddress->ToDataBuffer()[0] = i;
-        //scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
+    for (U32 i = 32; i < 32 + firstSectors + secondSectors; i++) {
+        writeBigEndian(baseAddress->ToDataBuffer(), i);
+        scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
 
-        firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer(i);
-        scsiInterface->issueScsiCommand(firmwareUpdateTransfer, perpareDataBuffer);
+        firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer();
+        scsiInterface->issueScsiCommand(firmwareUpdateTransfer, prepareDataBuffer);
+        transferCount++;
     }
 
     // ===phase #3: execute===
@@ -153,7 +177,14 @@ void FirmwareUpdater::update()
     SKScsiCommandDesc* firmwareUpdateExecute = SKU9VcCommandDesc::createFirmwareUpdateExecute();
     scsiInterface->issueScsiCommand(firmwareUpdateExecute, updateExecuteReturnData);
 
-    printf("firmware execute return code: %x\n", updateExecuteReturnData->ToDataBuffer()[0]);
+    printf("number of transfer commands: %d\n", transferCount);
+
+    U8 exitCode = updateExecuteReturnData->ToDataBuffer()[0];
+    if (exitCode == 0) {
+        printf("success! (exit code %x)\n", exitCode);
+    } else {
+        printf("failure! (exit code %x)\n", exitCode);
+    }
 }
 
 // Issues the VC to read firmware version information

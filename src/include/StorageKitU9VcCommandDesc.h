@@ -22,7 +22,7 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
     static SKScsiCommandDesc* createSetBaseAddress();
     static SKScsiCommandDesc* createReadFirmwareVersion();
     static SKScsiCommandDesc* createFirmwareUpdatePrepare();
-    static SKScsiCommandDesc* createFirmwareUpdateTransfer(const U16 SN);
+    static SKScsiCommandDesc* createFirmwareUpdateTransfer();
     static SKScsiCommandDesc* createFirmwareUpdateExecute();
 
   public:
