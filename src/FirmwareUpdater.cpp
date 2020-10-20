@@ -10,6 +10,8 @@
 
 using namespace updater;
 
+/* HELPER FUNCTIONS */
+
 U32 makeBigEndian(U32 v) {
     U32 b0, b1, b2, b3;
 
@@ -29,6 +31,28 @@ void writeBigEndian(unsigned char* arr, U32 v)
     arr[3] = v;
 }
 
+unsigned char* loadFileAsBuffer(const std::string filename, size_t* size)
+{
+    std::fstream fs;
+    fs.open(filename, std::fstream::in | std::fstream::binary);
+    if (!fs.is_open()) {
+        throw updater::UpdateExeception("cannot open file", filename);
+    }
+
+    // get size of file
+    fs.seekg(0, std::ios::end);
+    *size = (size_t) fs.tellg();
+    fs.seekg(0, std::ios::beg);
+    unsigned char* buffer = new unsigned char[*size];
+    fs.read(reinterpret_cast<char *>(buffer), *size);
+
+    fs.close();
+
+    return buffer;
+}
+
+/* CLASS FUNCTIONS */
+
 UpdateExeception::UpdateExeception(std::string msg, const char* value)
 {
     this->msg = msg.append("\"").append(value).append("\"");
@@ -46,7 +70,15 @@ const char* UpdateExeception::what() const throw()
 
 FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath) 
 {
+    printf("Current device: %s\n", devPath);
+
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
+
+    // let the user know the scan failed
+    if (devInfo == nullptr) {
+        throw updater::UpdateExeception("SKStorageProtocol::scan failed to find device at path ", devPath);
+    }
+
     this->scsiInterface = new SKScsiProtocol(devInfo->devicePath, devInfo->deviceHandle);
     
     const TargetInfo_t targetInfo = readTargetInfo(); 
@@ -67,17 +99,29 @@ FirmwareUpdater::~FirmwareUpdater()
 // prints a list of the fields that are needed to perform firmware upgrade for the current device
 void FirmwareUpdater::inspectCurrentDevice() 
 {
+    printf("Device Info:\n");
     // ugly... someone needs to fix this lol
-    printf("current fw: %c%c%c%c%c%c\n", currDevice.info.fwVersionDate[0], currDevice.info.fwVersionDate[1], currDevice.info.fwVersionDate[2], currDevice.info.fwVersionDate[3], currDevice.info.fwVersionDate[4], currDevice.info.fwVersionDate[5]);
-    printf("controller revision: %c%c\n", currDevice.info.controllerRevisionIdString[0], currDevice.info.controllerRevisionIdString[1]);
+    printf("    current fw: %c%c%c%c%c%c\n", 
+        currDevice.info.fwVersionDate[0], 
+        currDevice.info.fwVersionDate[1], 
+        currDevice.info.fwVersionDate[2], 
+        currDevice.info.fwVersionDate[3], 
+        currDevice.info.fwVersionDate[4], 
+        currDevice.info.fwVersionDate[5]
+    );
+    printf("    controller revision: %c%c\n", 
+        currDevice.info.controllerRevisionIdString[0], 
+        currDevice.info.controllerRevisionIdString[1]
+    );
     
     // make that ^^^ look like this vvv
-    printf("general fw features: %s\n", currDevice.ddData.generalFwFeatures);
-    printf("driver strengths: %s\n", currDevice.ddData.drvStrengths);
-    printf("flash device id: %s\n", currDevice.ddEntry.flashDeviceId);
-    printf("specific fw features: %s\n", currDevice.ddEntry.specificFwFeatures);
-    printf("firmware file name: %s\n", currDevice.ddEntry.firmwareFileName);
-    printf("anchor file name: %s\n", currDevice.ddEntry.anchorFileName);
+    printf("    general fw features: %s\n", currDevice.ddData.generalFwFeatures);
+    printf("    driver strengths: %s\n", currDevice.ddData.drvStrengths);
+    printf("    flash device id: %s\n", currDevice.ddEntry.flashDeviceId);
+    printf("    specific fw features: %s\n", currDevice.ddEntry.specificFwFeatures);
+    printf("    firmware file name: %s\n", currDevice.ddEntry.firmwareFileName);
+    printf("    anchor file name: %s\n", currDevice.ddEntry.anchorFileName);
+    printf("\n");
 }
 
 // issues the VCs needed to perform the firmware upgrade process
@@ -118,16 +162,16 @@ void FirmwareUpdater::update()
     prepareData.sectorsAnchorProg = makeBigEndian(sectorsInFile(pathToAnchor));
 
     // specific fw mask and value
-    prepareData.clearMaskSpecificFW = 0xffffffff;
-    prepareData.setMaskSpecificFW = makeBigEndian(hexStringToU32(currDevice.ddEntry.specificFwFeatures));
+    prepareData.clearMaskSpecificFW = 0;//0xffffffff;
+    prepareData.setMaskSpecificFW = 0;//makeBigEndian(hexStringToU32(currDevice.ddEntry.specificFwFeatures));
 
     // general fw mask and value
-    prepareData.clearMaskGeneralFW = 0xffffffff;
-    prepareData.setMaskGeneralFW = makeBigEndian(hexStringToU32(currDevice.ddData.generalFwFeatures));
+    prepareData.clearMaskGeneralFW = 0;//0xffffffff;
+    prepareData.setMaskGeneralFW = 0;//makeBigEndian(hexStringToU32(currDevice.ddData.generalFwFeatures));
 
     // driver strength mask and value
-    prepareData.clearMaskDriverStrength = 0xffffffff;
-    prepareData.setMaskDriverStrength = makeBigEndian(hexStringToU32(currDevice.ddData.drvStrengths));
+    prepareData.clearMaskDriverStrength = 0;//0xffffffff;
+    prepareData.setMaskDriverStrength = 0;//makeBigEndian(hexStringToU32(currDevice.ddData.drvStrengths));
 
     // stuff the struct into a buffer
     SKAlignedBuffer* prepareDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
@@ -146,6 +190,10 @@ void FirmwareUpdater::update()
 
     // ===phase #2 transfer===
 
+    // load file data
+    size_t anchorSizeInBytes = 0;
+    unsigned char* anchorFileData = loadFileAsBuffer(pathToAnchor, &anchorSizeInBytes);
+
     // write_set_base_address()
     SKAlignedBuffer* baseAddress = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     memset(baseAddress->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES);
@@ -153,35 +201,44 @@ void FirmwareUpdater::update()
     SKScsiCommandDesc* setBaseAddress = SKU9VcCommandDesc::createSetBaseAddress();
     scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
 
-    int transferCount = 0;
     // write_firmware_update_transfer()
     SKScsiCommandDesc* firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer();
-    scsiInterface->issueScsiCommand(firmwareUpdateTransfer, prepareDataBuffer);
-    transferCount++;
+    SKAlignedBuffer* anchorDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memcpy(anchorDataBuffer->ToDataBuffer(), anchorFileData, anchorSizeInBytes);
+    scsiInterface->issueScsiCommand(firmwareUpdateTransfer, anchorDataBuffer);
     
-    for (U32 i = 32; i < 32 + firstSectors + secondSectors; i++) {
-        writeBigEndian(baseAddress->ToDataBuffer(), i);
+    delete[] anchorFileData;
+
+
+    size_t fwSizeInBytes = 0;
+    unsigned char* fwFileData = loadFileAsBuffer(pathToFW, &fwSizeInBytes);
+
+    printf("Transfering firmware data to the device...\n");
+    SKAlignedBuffer* fwDataBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    for (U32 i = 0; i < firstSectors + secondSectors; i++) {
+        // set base address
+        writeBigEndian(baseAddress->ToDataBuffer(), i + 32);
         scsiInterface->issueScsiCommand(setBaseAddress, baseAddress);
 
-        firmwareUpdateTransfer = SKU9VcCommandDesc::createFirmwareUpdateTransfer();
-        scsiInterface->issueScsiCommand(firmwareUpdateTransfer, prepareDataBuffer);
-        transferCount++;
+        memcpy(fwDataBuffer->ToDataBuffer(), &fwFileData[i * SECTOR_SIZE_IN_BYTES], SECTOR_SIZE_IN_BYTES);
+        scsiInterface->issueScsiCommand(firmwareUpdateTransfer, fwDataBuffer);
     }
 
     // ===phase #3: execute===
 
     SKAlignedBuffer* updateExecuteReturnData = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
-    memset(updateExecuteReturnData->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES);
+    // set to 0xff to see if data was written to the buffer
+    memset(updateExecuteReturnData->ToDataBuffer(), 0xff, SECTOR_SIZE_IN_BYTES); 
     
     // read_firmware_update_execute()
     SKScsiCommandDesc* firmwareUpdateExecute = SKU9VcCommandDesc::createFirmwareUpdateExecute();
     scsiInterface->issueScsiCommand(firmwareUpdateExecute, updateExecuteReturnData);
 
-    printf("number of transfer commands: %d\n", transferCount);
-
     U8 exitCode = updateExecuteReturnData->ToDataBuffer()[0];
     if (exitCode == 0) {
         printf("success! (exit code %x)\n", exitCode);
+    } else if (exitCode = 0xff) {
+        printf("did not get any data from execute command (%x)\n", exitCode);
     } else {
         printf("failure! (exit code %x)\n", exitCode);
     }
