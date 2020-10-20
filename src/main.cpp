@@ -11,14 +11,18 @@ int main(int argc, char** argv) {
     const char* devPath = "/dev/sdb";
     std::string ddPath = "/home/bypie5/Downloads/U9/dd.txt";
 
-    updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
-    
-    updater->inspectCurrentDevice();
+    try {
+        updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
+        
+        updater->inspectCurrentDevice();
+        updater->update();
 
-    updater->update();
-
-    // clean up
-    delete updater;
+        // clean up
+        delete updater;
+    } catch (std::exception &e) {
+        printf("Application encountered a runtime exception!\n'%s'\n", e.what());
+        return 1;
+    }
 
     return 0;
 }

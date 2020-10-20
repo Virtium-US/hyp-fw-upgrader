@@ -71,6 +71,12 @@ const char* UpdateExeception::what() const throw()
 FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath) 
 {
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
+
+    // let the user know the scan failed
+    if (devInfo == nullptr) {
+        throw updater::UpdateExeception("SKStorageProtocol::scan failed to find device at path ", devPath);
+    }
+
     this->scsiInterface = new SKScsiProtocol(devInfo->devicePath, devInfo->deviceHandle);
     
     const TargetInfo_t targetInfo = readTargetInfo(); 
