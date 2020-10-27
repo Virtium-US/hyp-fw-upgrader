@@ -11,7 +11,7 @@ git clone https://github.com/Virtium-US/hyp-fw-upgrader.git
 cd hyp-fw-upgrader
 
 make
-sudo ./build/hyp-fw-upgrader
+sudo ./build/hyp-fw-upgrader [dev_path] [~filepath/dd.txt]
 ```
 
 ### Windows:
@@ -22,5 +22,5 @@ git clone https://github.com/Virtium-US/hyp-fw-upgrader.git
 cd hyp-fw-upgrader
 
 make -f Makefile_WIN32
-./build/hyp-fw-upgrader.exe
+./build/hyp-fw-upgrader.exe [dev_path] [~filepath\dd.txt]
 ```
