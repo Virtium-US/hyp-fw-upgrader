@@ -3,13 +3,35 @@
 #include <string.h>
 #include <vector>
 
+#include <stdio.h>
+
 #include "FirmwareUpdater.h"
+
+#define INPUT_ARGUMENT_COUNT     3
+#define DEV_PATH_ARG             1
+#define DD_PATH_ARG              2
+
 
 int main(int argc, char** argv) {
     // takes in a path to a Hyperstone firmware archive and the path to the device to upgrade
-    // TODO let user specific device path in the command line args
-    const char* devPath = "/dev/sdb";
-    std::string ddPath = "/home/bypie5/Downloads/U9/dd.txt";
+    
+    if (argc != INPUT_ARGUMENT_COUNT) {
+        printf("ERROR - Invalid input parameters!\nUSAGE: hyp-fw-upgrader [device] [dd.txt path]\n\nEXAMPLES\n\n");
+        printf("LINUX:\t\t hyp-fw-upgrader /dev/sdb /path_to_fw/dd.txt \n");
+        printf("WINDOWS:\t hyp-fw-upgrader \\\\.\PhysicalDrive2 C:\\path_to_fw\\dd.txt \n");
+
+        return 1;
+    }
+
+    //const char* devPath = "/dev/sdb";
+    std::string ddPath = "/home/virtium/Desktop/USB/FW-U8071420-001/U8B_pSLC/dd.txt";
+
+    const char* devPath = argv[DEV_PATH_ARG];
+    //std::string ddPath = argv[DD_PATH_ARG];
+
+    //printf("  devPath: '%s'\n  ddPath: '%s'", devPath, ddPath);
+    std::cout << "devPath: " << devPath  << "\n";
+    std::cout << "ddPath: " << ddPath  << "\n";
 
     try {
         updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
