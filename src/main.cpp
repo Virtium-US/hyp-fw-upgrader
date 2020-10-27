@@ -3,8 +3,6 @@
 #include <string.h>
 #include <vector>
 
-#include <stdio.h>
-
 #include "FirmwareUpdater.h"
 
 #define INPUT_ARGUMENT_COUNT     3
@@ -23,15 +21,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    //const char* devPath = "/dev/sdb";
-    std::string ddPath = "/home/virtium/Desktop/USB/FW-U8071420-001/U8B_pSLC/dd.txt";
-
     const char* devPath = argv[DEV_PATH_ARG];
-    //std::string ddPath = argv[DD_PATH_ARG];
-
-    //printf("  devPath: '%s'\n  ddPath: '%s'", devPath, ddPath);
-    std::cout << "devPath: " << devPath  << "\n";
-    std::cout << "ddPath: " << ddPath  << "\n";
+    std::string ddPath = argv[DD_PATH_ARG];
 
     try {
         updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
