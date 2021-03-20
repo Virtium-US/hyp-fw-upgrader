@@ -25,10 +25,14 @@ int main(int argc, char** argv) {
     std::string ddPath = argv[DD_PATH_ARG];
 
     try {
+        printf("DEBUG:\tFile: main.cpp\tFunction: main\tPoint: #1\n");
         updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
         
+        printf("DEBUG:\tFile: main.cpp\tFunction: main\tPoint: #2\n");
         updater->inspectCurrentDevice();
+        printf("DEBUG:\tFile: main.cpp\tFunction: main\tPoint: #3\n");
         updater->update();
+        printf("DEBUG:\tFile: main.cpp\tFunction: main\tPoint: #4\n");
 
         // clean up
         delete updater;
