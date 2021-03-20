@@ -95,7 +95,7 @@ FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath)
     const size_t last_slash_idx = archivePath.rfind('/');
     if (std::string::npos != last_slash_idx)
     {
-        archivePath = archivePath.substr(0, last_slash_idx);
+        archivePath = archivePath.substr(0, last_slash_idx + 1);
     }
 
     printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::FirmwareUpdater\tPoint: #2\n");
