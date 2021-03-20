@@ -153,8 +153,8 @@ void FirmwareUpdater::update()
     // sectors in files (first fw, second fw, and anchor)
     char pathToFW[MAX_LINE_LEN];
     char pathToAnchor[MAX_LINE_LEN];
-    sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
-    sprintf(pathToAnchor, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
+    sprintf(pathToFW, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
+    sprintf(pathToAnchor, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
     int totalSectorsInFw = (int) sectorsInFile(pathToFW);
 
     U32 firstSectors = std::min(totalSectorsInFw, 257);
