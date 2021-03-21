@@ -13,7 +13,6 @@ using namespace updater;
 /* HELPER FUNCTIONS */
 
 U32 makeBigEndian(U32 v) {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tHelperFunction: makeBigEndian\tPoint: #1\n");
     U32 b0, b1, b2, b3;
 
     b0 = (v & 0x000000ff) << 24u;
@@ -26,7 +25,6 @@ U32 makeBigEndian(U32 v) {
 
 void writeBigEndian(unsigned char* arr, U32 v)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tHelperFunction: writeBigEndian\tPoint: #1\n");
     arr[0] = v >> 24;
     arr[1] = v >> 16;
     arr[2] = v >> 8;
@@ -35,7 +33,6 @@ void writeBigEndian(unsigned char* arr, U32 v)
 
 unsigned char* loadFileAsBuffer(const std::string filename, size_t* size)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tHelperFunction: loadFileAsBuffer\tPoint: #1\n");
     std::fstream fs;
     fs.open(filename, std::fstream::in | std::fstream::binary);
     if (!fs.is_open()) {
@@ -51,7 +48,6 @@ unsigned char* loadFileAsBuffer(const std::string filename, size_t* size)
 
     fs.close();
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tFunction: loadFileAsBuffer\tPoint: #2\n");
     return buffer;
 }
 
@@ -59,25 +55,21 @@ unsigned char* loadFileAsBuffer(const std::string filename, size_t* size)
 
 UpdateExeception::UpdateExeception(std::string msg, const char* value)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: UpdateExeceptionChar\tPoint: #1\n");
     this->msg = msg.append("\"").append(value).append("\"");
 }
 
 UpdateExeception::UpdateExeception(std::string msg, std::string value)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: UpdateExeceptionString\tPoint: #1\n");
     this->msg = msg.append("\"").append(value).append("\"");
 }
 
 const char* UpdateExeception::what() const throw()
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: UpdateExeception::what\tPoint: #1\n");
     return msg.c_str();
 }
 
 FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath) 
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::FirmwareUpdater\tPoint: #1\n");
     SKBaseDeviceInfo* devInfo = SKStorageProtocol::scan(devPath);
 
     // let the user know the scan failed
@@ -98,20 +90,17 @@ FirmwareUpdater::FirmwareUpdater(const char* devPath, std::string configPath)
         archivePath = archivePath.substr(0, last_slash_idx + 1);
     }
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::FirmwareUpdater\tPoint: #2\n");
     delete devInfo;
 }
 
 FirmwareUpdater::~FirmwareUpdater()
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::~FirmwareUpdate\tPoint: #1\n");
     delete scsiInterface;
 }
 
 // prints a list of the fields that are needed to perform firmware upgrade for the current device
 void FirmwareUpdater::inspectCurrentDevice() 
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::inspectCurrentDevice\tPoint: #1\n");
     // ugly... someone needs to fix this lol
     printf("current fw: %c%c%c%c%c%c\n", currDevice.info.fwVersionDate[0], currDevice.info.fwVersionDate[1], currDevice.info.fwVersionDate[2], currDevice.info.fwVersionDate[3], currDevice.info.fwVersionDate[4], currDevice.info.fwVersionDate[5]);
     printf("controller revision: %c%c\n", currDevice.info.controllerRevisionIdString[0], currDevice.info.controllerRevisionIdString[1]);
@@ -123,7 +112,6 @@ void FirmwareUpdater::inspectCurrentDevice()
     printf("specific fw features: %s\n", currDevice.ddEntry.specificFwFeatures);
     printf("firmware file name: %s\n", currDevice.ddEntry.firmwareFileName);
     printf("anchor file name: %s\n", currDevice.ddEntry.anchorFileName);
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::inspectCurrentDevice\tPoint: #2\n");
 }
 
 // issues the VCs needed to perform the firmware upgrade process
@@ -147,7 +135,6 @@ void FirmwareUpdater::update()
     */
 
     // ===phase #0: assemble===
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::update\tPoint: #0 (Assemble)\n");
     FWUpdatePrepareData_t prepareData = {};
 
     // sectors in files (first fw, second fw, and anchor)
@@ -182,7 +169,6 @@ void FirmwareUpdater::update()
     memcpy(prepareDataBuffer->ToDataBuffer(), &prepareData, sizeof(FWUpdatePrepareData_t));
     
     // ===phase #1: prepare===
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::update\tPoint: #1 (Prepare)\n");
 
     // write_set_address_extension(0)
     SKScsiCommandDesc* setAddressExtension = SKU9VcCommandDesc::createSetAddressExtension(0);
@@ -193,7 +179,6 @@ void FirmwareUpdater::update()
     scsiInterface->issueScsiCommand(firmwareUpdatePrepare, prepareDataBuffer);
 
     // ===phase #2 transfer===
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::update\tPoint: #2 (Transfer)\n");
 
     // load file data
     size_t anchorSizeInBytes = 0;
@@ -234,7 +219,6 @@ void FirmwareUpdater::update()
     }
 
     // ===phase #3: execute===
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::update\tPoint: #3 (Execute)\n");
 
     SKAlignedBuffer* updateExecuteReturnData = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     // set to 0xff to see if data was written to the buffer
@@ -264,7 +248,6 @@ void FirmwareUpdater::update()
 // Issues the VC to read firmware version information
 const FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::readFirmwareVersion\tPoint: #1\n");
     // prepare and execute the command data
     SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     SKScsiCommandDesc* desc = SKU9VcCommandDesc::createReadFirmwareVersion();
@@ -278,14 +261,12 @@ const FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
     delete buffer;
     delete desc;
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::readFirmwareVersion\tPoint: #2\n");
     return info;
 }
 
 // Issues the VC to inspect information about the target device
 const TargetInfo_t FirmwareUpdater::readTargetInfo()
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::readTargetInfo\tPoint: #1\n");
     // prepare and execute the command
     SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
     SKScsiCommandDesc* desc = SKU9VcCommandDesc::createTargetInfo();
@@ -298,14 +279,12 @@ const TargetInfo_t FirmwareUpdater::readTargetInfo()
     delete buffer;
     delete desc;
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::readTargetInfo\tPoint: #2\n");
     return targetInfo;
 }
 
 // loads the common data in the dd.txt file specified by the given path
 const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::loadDDData\tPoint: #1\n");
     // locate general fw features (the -features flag in dd.txt)
     const std::string rawFeaturesLine = findLineInDD(path, "-features=");
     // locate driver strength (the -drv_strengths flag in dd.txt)
@@ -327,14 +306,12 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
     rawFeaturesLine.substr(10).copy(dd.generalFwFeatures, rawFeaturesLine.substr(10).length());
     rawDrvStrengths.substr(15).copy(dd.drvStrengths, rawDrvStrengths.substr(15).length());
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::loadDDData\tPoint: #2\n");
     return dd;
 }
 
 // finds the target's device description line in the dd.txt file specified by the given path
 const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &info, std::string path) 
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::findDDEntry\tPoint: #1\n");
     // construct a hex string representation of flash id from the supplied target into
     char flashIdStr[13]; // flashId is 6 bytes, so we need 12 bytes + 1 ("\0") to encode it as a hex string
     sprintf(flashIdStr, "%04x%08x", info.flashId_1, info.flashId_0);
@@ -375,7 +352,6 @@ const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &
     firmwareFileName.copy(dde.firmwareFileName, firmwareFileName.length());
     anchorFileName.copy(dde.anchorFileName, anchorFileName.length());
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::findDDEntry\tPoint: #2\n");
     return dde;
 }
 
@@ -385,7 +361,6 @@ const DeviceDescriptionEntry_t FirmwareUpdater::findDDEntry(const TargetInfo_t &
 */
 const std::string FirmwareUpdater::findLineInDD(std::string path, const char* find)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::findLineInDD\tPoint: #1\n");
     std::fstream fs;
 
     // TODO: I don't think this program needs to open up a new stream every time this function is called
@@ -394,7 +369,6 @@ const std::string FirmwareUpdater::findLineInDD(std::string path, const char* fi
         throw updater::UpdateExeception("cannot open file", path);
     }
 
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::findLineInDD\tPoint: #2\n");
     // find a line that has a start that matches the value of 'find'
     const unsigned int findLen = strlen(find);
     char line[MAX_LINE_LEN];
@@ -432,7 +406,6 @@ const std::string FirmwareUpdater::findLineInDD(std::string path, const char* fi
 
 const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::locateWord\tPoint: #1\n");
     int i = 0;
     // skip white space
     while(str[i] == ' ' && i < str.length()) {
@@ -441,7 +414,6 @@ const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
 
     int currWord = 0;
     int start = i;
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::locateWord\tPoint: #2\n");
     for (i; i < str.length(); i++) {
         // find starting of word
         if (currWord != word) {
@@ -462,19 +434,16 @@ const std::string FirmwareUpdater::locateWord(const std::string &str, int word)
 
 const U32 FirmwareUpdater::hexStringToU32(const char* str)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::hexStringToU32\tPoint: #1\n");
     std::stringstream ss;
     ss << std::hex << str;
 
     U32 val;
     ss >> val;
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::hexStringToU32\tPoint: #2\n");
     return val;
 }
 
 const U32 FirmwareUpdater::sectorsInFile(std::string pathOnDisk)
 {
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::sectorsInFile\tPoint: #1\n");
     std::fstream fs;
     fs.open(pathOnDisk, std::fstream::in | std::fstream::binary);
 
@@ -484,6 +453,5 @@ const U32 FirmwareUpdater::sectorsInFile(std::string pathOnDisk)
     fs.ignore( std::numeric_limits<std::streamsize>::max() );
     fs.close();
     
-    printf("DEBUG:\tFile: FirmwareUpdater.cpp\tClassFunction: FirmwareUpdater::sectorsInFile\tPoint: #2\n");
     return fs.gcount()/SECTOR_SIZE_IN_BYTES;
 }
