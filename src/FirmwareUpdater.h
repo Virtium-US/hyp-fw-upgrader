@@ -63,6 +63,25 @@ typedef struct
 } TargetInfo_t;
 
 /*
+* fields used by the input of the Update Customer Specific Device Description Data VSC
+* and output of the Read Customer Specific Device Description Data VSC
+*
+* NOTE: NOT ALL FIELDS ARE PRESENT. Refer to the Update Customer Specific Device 
+* Description Data section in the Hyperstone Ux Firmware Manual for more information
+*/
+typedef struct
+{
+    U32 formatVersion;      // 0..3 Format version. Current format is version 2
+    U8 ataFirmwareRev[8];   // 4..11 ATA Firmware revision within ATA Identify Device Information
+    U16 _resv;              // 12..13 Reserved
+    U16 bcdDevice;          // 14..15 bcdDevice Version within the USB Device Descriptor
+    U32 scsiInqData_LUN0;   // 16..19 Product Revision Level within the SCSI Inquiry data for LUN 0
+    U32 scsiInqData_LUN1;   // 20..23 Product Revision Level within the SCSI Inquiry data for LUN 1
+    U32 scsiInqData_LUN2;   // 24..27 Product Revision Level within the SCSI Inquiry data for LUN 2
+    U32 scsiInqData_LUN3;   // 28..31 Product Revision Level within the SCSI Inquiry data for LUN 3
+} UpdateCustSpecDD_t;
+
+/*
 * a line from a dd file. for example:
 * ; M60A MT29F4G08ABADA
 *       2cdc90950000 1 1 4096 80 256 0x01FF 0000000A m11f1 am11i1 m11p1 1 160 2 4 100000
@@ -91,12 +110,15 @@ typedef struct
     char anchorFileName[32]; // making the assumption that 32 bytes is the max size this field can be
 } DeviceDescriptionEntry_t;
 
-// the data contained by a dd.txt file for a Hyperstone firmware archive
+// the data contained by a dd.txt file for a Hyperstone firmware archive. NOTE: NOT ALL FIELDS ARE PRESENT.
 typedef struct
 {
     // -features=<generalFwFeatures>
     char generalFwFeatures[32]; // making the assumption that 32 bytes is the max size this field can be
     char drvStrengths[32]; // making the assumption that 32 bytes is the max size this field can be
+    char ataFirmwareRevision[32]; // -ATAFirmwareRevision
+    char bcdDevice[32]; // -bcdDevice
+    char inqRevision[32]; // -INQRevision
 } DeviceDescriptionData_t;
 
 class UpdateExeception : public std::exception
@@ -131,10 +153,12 @@ class FirmwareUpdater {
 
     public:
         void inspectCurrentDevice();
-        void update();
+        int update();
+        void updateCustomerVersionData();
     
     private:
         const FWVersionInfo_t readFirmwareVersion();
+        const void printCustomerVersionData(); 
         const TargetInfo_t readTargetInfo();
         const DeviceDescriptionData_t loadDDData(std::string path);
         const DeviceDescriptionEntry_t findDDEntry(const TargetInfo_t &info, std::string path);

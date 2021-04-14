@@ -24,6 +24,8 @@ class SKU9VcCommandDesc : public SKScsiCommandDesc
     static SKScsiCommandDesc* createFirmwareUpdatePrepare();
     static SKScsiCommandDesc* createFirmwareUpdateTransfer();
     static SKScsiCommandDesc* createFirmwareUpdateExecute();
+    static SKScsiCommandDesc* createUpdateCustomerSpecificDDData();
+    static SKScsiCommandDesc* createReadCustomerSpecificDDData();
 
   public:
     void prepareCommandHypVc(const U8 &cmdSet, const U8 &cmdCode, const U16 &sectorNumber, const SKHypVcDirection &direction);

@@ -115,7 +115,7 @@ void FirmwareUpdater::inspectCurrentDevice()
 }
 
 // issues the VCs needed to perform the firmware upgrade process
-void FirmwareUpdater::update()
+int FirmwareUpdater::update()
 {
     /* 
     this sequence of VCs is taken from the hsfmt source code. the firmware manual also 
@@ -140,8 +140,8 @@ void FirmwareUpdater::update()
     // sectors in files (first fw, second fw, and anchor)
     char pathToFW[MAX_LINE_LEN];
     char pathToAnchor[MAX_LINE_LEN];
-    sprintf(pathToFW, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
-    sprintf(pathToAnchor, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
+    sprintf(pathToFW, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
+    sprintf(pathToAnchor, "%s%s.e90", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
     int totalSectorsInFw = (int) sectorsInFile(pathToFW);
 
     U32 firstSectors = std::min(totalSectorsInFw, 257);
@@ -172,7 +172,11 @@ void FirmwareUpdater::update()
 
     // write_set_address_extension(0)
     SKScsiCommandDesc* setAddressExtension = SKU9VcCommandDesc::createSetAddressExtension(0);
-    scsiInterface->issueScsiCommand(setAddressExtension, new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES));
+    SKAlignedBuffer* emptyBuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(emptyBuffer->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES); // initialize to 0
+    scsiInterface->issueScsiCommand(setAddressExtension, emptyBuffer);
+
+    delete emptyBuffer;
 
     // write_firmware_update_prepare()
     SKScsiCommandDesc* firmwareUpdatePrepare = SKU9VcCommandDesc::createFirmwareUpdatePrepare();
@@ -218,6 +222,8 @@ void FirmwareUpdater::update()
         transferCount++;
     }
 
+    delete[] fwFileData;
+
     // ===phase #3: execute===
 
     SKAlignedBuffer* updateExecuteReturnData = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
@@ -230,19 +236,84 @@ void FirmwareUpdater::update()
 
     printf("number of transfer commands: %d\n", transferCount);
 
+    // From Hyp U8B user guide: "A status code is returned in the first byte of the return data sector..."
     U8 exitCode = updateExecuteReturnData->ToDataBuffer()[0];
-    printf("first byte of return buffer %x%x%x%x\n", 
-        updateExecuteReturnData->ToDataBuffer()[0], 
-        updateExecuteReturnData->ToDataBuffer()[1], 
-        updateExecuteReturnData->ToDataBuffer()[2], 
-        updateExecuteReturnData->ToDataBuffer()[3]);
+
     if (exitCode == 0) {
-        printf("success! (exit code %x)\n", exitCode);
-    } else if (exitCode = 0xff) {
-        printf("did not get any data from execute command (%x)\n", exitCode);
+        printf("\nsuccess! (exit code 0x%02x)\n", exitCode);
     } else {
-        printf("failure! (exit code %x)\n", exitCode);
+        printf("\nUpdate failed with error code: %d\nError code msg: ", exitCode);
+        switch(exitCode) {
+            case 0:
+                printf("Ok, controller will reboot into the new firmware\n");
+            break;
+            case 1:
+                printf("Unexpected HYP VSC sequence\n");
+            break;
+            case 3:
+                printf("Error writing to the Anchor block\n");
+            break;
+            case 4:
+                printf("Error, firmware update is disabled through preformat configuration\n");
+            break;
+            case 5:
+                printf("Error, the uploaded firmware file failed authentication and is corrupt\n");
+            break;
+            case 6:
+                printf("Error, the new firmware is not update compatible with the current firmware\n");
+            break;
+            default:
+                printf("Unknown error code\n");
+            break;
+        }
     }
+
+    // clean up
+    delete setAddressExtension;
+    delete firmwareUpdatePrepare;
+    delete setBaseAddress;
+    delete firmwareUpdateTransfer;
+    delete firmwareUpdateExecute;
+    delete prepareDataBuffer;
+    delete baseAddress;
+    delete fwDataBuffer;
+    delete updateExecuteReturnData;
+    delete anchorDataBuffer;
+
+    return exitCode;
+}
+
+/**
+ * Updates customer specified version description data. Should be called after
+ * a call to FirmwareUpdater::update()
+ */ 
+void FirmwareUpdater::updateCustomerVersionData() {
+    // load data to send from dd.txt
+    UpdateCustSpecDD_t cvdData = {};
+    char* ataFirmwareRev = currDevice.ddData.ataFirmwareRevision;
+    memcpy(cvdData.ataFirmwareRev, ataFirmwareRev, sizeof(char) * 8);    
+    cvdData.bcdDevice = (int)strtol(currDevice.ddData.bcdDevice, NULL, 16);
+    
+    char* rawInqData = currDevice.ddData.inqRevision;
+    U32 val = 0;
+    for (int i = 3; i >= 0; i--) {
+        val = val << 8;
+        val += rawInqData[i] & 0x000000ff;
+    }
+    cvdData.scsiInqData_LUN0 = val;
+    
+    SKAlignedBuffer* buffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    memset(buffer->ToDataBuffer(), 0, SECTOR_SIZE_IN_BYTES); // initialize to 0
+    memcpy(buffer->ToDataBuffer(), &cvdData, sizeof(UpdateCustSpecDD_t));
+    SKScsiCommandDesc* updateCVD = SKU9VcCommandDesc::createUpdateCustomerSpecificDDData();
+    scsiInterface->issueScsiCommand(updateCVD, buffer);
+    
+    std::cout << std::endl;
+    printCustomerVersionData();
+
+    // clean up
+    delete buffer;
+    delete updateCVD;
 }
 
 // Issues the VC to read firmware version information
@@ -262,6 +333,55 @@ const FWVersionInfo_t FirmwareUpdater::readFirmwareVersion()
     delete desc;
 
     return info;
+}
+
+const void FirmwareUpdater::printCustomerVersionData() 
+{
+    SKAlignedBuffer* readbuffer = new SKAlignedBuffer(SECTOR_SIZE_IN_BYTES);
+    SKScsiCommandDesc* readCVD = SKU9VcCommandDesc::createReadCustomerSpecificDDData();
+    scsiInterface->issueScsiCommand(readCVD, readbuffer);
+
+    // inspect current customer specified version desc data
+    updater::UpdateCustSpecDD_t fetchedCVD;
+    memcpy(&fetchedCVD, readbuffer->ToDataBuffer(), sizeof(UpdateCustSpecDD_t));
+    
+    std::cout << "Current ATA Firmware Revision: ";
+    for (int i = 0; i < 8; i++) {
+        printf("%c", fetchedCVD.ataFirmwareRev[i]);
+    }
+    std::cout << std::endl;
+    
+    printf("Current BCD Device Version: %d\n", fetchedCVD.bcdDevice);
+    
+    std::cout << "SCSI Inquiry data:"; 
+    std::cout << " LUN 0: ";
+    U32 a = fetchedCVD.scsiInqData_LUN0;
+    for (int i = 0; i < 4; i++) {
+        printf("%c", a & 0x000000ff);
+        a = a >> 8;
+    }
+    std::cout << ", LUN 1: ";
+    a = fetchedCVD.scsiInqData_LUN1;
+    for (int i = 0; i < 4; i++) {
+        printf("%c", a & 0x000000ff);
+        a = a >> 8;
+    }
+    std::cout << " LUN 2: ";
+    a = fetchedCVD.scsiInqData_LUN2;
+    for (int i = 0; i < 4; i++) {
+        printf("%c", a & 0x000000ff);
+        a = a >> 8;
+    }
+    std::cout << " LUN 3: ";
+    a = fetchedCVD.scsiInqData_LUN3;
+    for (int i = 0; i < 4; i++) {
+        printf("%c", a & 0x000000ff);
+        a = a >> 8;
+    }
+    std::cout << std::endl;
+
+    delete readbuffer;
+    delete readCVD;
 }
 
 // Issues the VC to inspect information about the target device
@@ -289,6 +409,10 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
     const std::string rawFeaturesLine = findLineInDD(path, "-features=");
     // locate driver strength (the -drv_strengths flag in dd.txt)
     const std::string rawDrvStrengths = findLineInDD(path, "-drv_strengths=");
+    // ...
+    const std::string rawFirmwareRevision = findLineInDD(path, "-ATAFirmwareRevision=");
+    const std::string rawBCDDevice = findLineInDD(path, "-bcdDevice");
+    const std::string rawINQRevision = findLineInDD(path, "-INQRevision=");
 
     // validating...
     if (rawFeaturesLine.empty()) {
@@ -298,13 +422,28 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
     if (rawDrvStrengths.empty()) {
         throw updater::UpdateExeception("cannot find line with matching search string ", "-drv_strengths=");
     }
+
+    if (rawFirmwareRevision.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", "-ATAFirmwareRevision=");
+    }
+
+    if (rawBCDDevice.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", "-bcdDevice");
+    }
     
+    if (rawINQRevision.empty()) {
+        throw updater::UpdateExeception("cannot find line with matching search string ", "-INQRevision=");
+    }
+
     // construct well-formed data
     DeviceDescriptionData_t dd = {};
 
     // copies everything after '-<flag>='
     rawFeaturesLine.substr(10).copy(dd.generalFwFeatures, rawFeaturesLine.substr(10).length());
     rawDrvStrengths.substr(15).copy(dd.drvStrengths, rawDrvStrengths.substr(15).length());
+    rawFirmwareRevision.substr(21).copy(dd.ataFirmwareRevision, rawFirmwareRevision.substr(21).length());
+    rawBCDDevice.substr(11).copy(dd.bcdDevice, rawBCDDevice.substr(11).length());
+    rawINQRevision.substr(13).copy(dd.inqRevision, rawINQRevision.substr(13).length());
 
     return dd;
 }

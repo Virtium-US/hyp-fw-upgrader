@@ -24,18 +24,37 @@ int main(int argc, char** argv) {
     const char* devPath = argv[DEV_PATH_ARG];
     std::string ddPath = argv[DD_PATH_ARG];
 
+    updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
     try {
-        updater::FirmwareUpdater* updater = new updater::FirmwareUpdater(devPath, ddPath);
-        
+        std::cout << "=== Current Device Info ===" << std::endl;
         updater->inspectCurrentDevice();
-        updater->update();
+        
+        std::cout << "\n=== Starting Update ===" << std::endl;
+
+        std::cout << "\nTransfering firmware files..." << std::endl;
+        int exit = updater->update();
+        if (exit == 0) {
+            // "--update-customer-version-data"
+            std::cout << "\nUpdating and printing customer specific version description data..." << std::endl;
+            updater->updateCustomerVersionData();
+        } else {
+            // clean up
+            delete updater;
+
+            std::cout << "UPDATE FAILED!" << std::endl;
+            return exit;
+        }
 
         // clean up
         delete updater;
     } catch (std::exception &e) {
         printf("Application encountered a runtime exception!\n'%s'\n", e.what());
+        // clean up
+        delete updater;
+
         return 1;
     }
 
+    std::cout << "UPDATE SUCCESSFUL" << std::endl;
     return 0;
 }
