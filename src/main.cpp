@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     if (argc != INPUT_ARGUMENT_COUNT) {
         printf("ERROR - Invalid input parameters!\nUSAGE: hyp-fw-upgrader [device] [dd.txt path]\n\nEXAMPLES\n\n");
         printf("LINUX:\t\t hyp-fw-upgrader /dev/sdb /path_to_fw/dd.txt \n");
-        printf("WINDOWS:\t hyp-fw-upgrader \\\\.\PhysicalDrive2 C:\\path_to_fw\\dd.txt \n");
+        printf("WINDOWS:\t hyp-fw-upgrader \\\\.\\PhysicalDrive2 C:\\path_to_fw\\dd.txt \n");
 
         return 1;
     }

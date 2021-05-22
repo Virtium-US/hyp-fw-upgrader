@@ -5,6 +5,7 @@
 #include <sstream>
 #include <limits>
 #include <algorithm>
+#include <filesystem>
 
 #include "FirmwareUpdater.h"
 
@@ -49,6 +50,19 @@ unsigned char* loadFileAsBuffer(const std::string filename, size_t* size)
     fs.close();
 
     return buffer;
+}
+
+std::string getPathToFWFile(std::string archivePath, std::string fwFile) 
+{
+    for (const auto & entry : std::filesystem::directory_iterator(archivePath))
+    {
+        if (entry.path().string().find(fwFile) != std::string::npos)
+        {
+            return entry.path().string();
+        }
+    }
+
+    return "";
 }
 
 /* CLASS FUNCTIONS */
@@ -101,11 +115,8 @@ FirmwareUpdater::~FirmwareUpdater()
 // prints a list of the fields that are needed to perform firmware upgrade for the current device
 void FirmwareUpdater::inspectCurrentDevice() 
 {
-    // ugly... someone needs to fix this lol
     printf("current fw: %c%c%c%c%c%c\n", currDevice.info.fwVersionDate[0], currDevice.info.fwVersionDate[1], currDevice.info.fwVersionDate[2], currDevice.info.fwVersionDate[3], currDevice.info.fwVersionDate[4], currDevice.info.fwVersionDate[5]);
     printf("controller revision: %c%c\n", currDevice.info.controllerRevisionIdString[0], currDevice.info.controllerRevisionIdString[1]);
-    
-    // make that ^^^ look like this vvv
     printf("general fw features: %s\n", currDevice.ddData.generalFwFeatures);
     printf("driver strengths: %s\n", currDevice.ddData.drvStrengths);
     printf("flash device id: %s\n", currDevice.ddEntry.flashDeviceId);
@@ -138,10 +149,9 @@ int FirmwareUpdater::update()
     FWUpdatePrepareData_t prepareData = {};
 
     // sectors in files (first fw, second fw, and anchor)
-    char pathToFW[MAX_LINE_LEN];
-    char pathToAnchor[MAX_LINE_LEN];
-    sprintf(pathToFW, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.firmwareFileName);
-    sprintf(pathToAnchor, "%s%s.e81", archivePath.c_str(), currDevice.ddEntry.anchorFileName);
+    std::string pathToFW = getPathToFWFile(archivePath, currDevice.ddEntry.firmwareFileName);
+    std::string pathToAnchor = getPathToFWFile(archivePath, currDevice.ddEntry.anchorFileName);
+    
     int totalSectorsInFw = (int) sectorsInFile(pathToFW);
 
     U32 firstSectors = std::min(totalSectorsInFw, 257);
@@ -414,36 +424,26 @@ const DeviceDescriptionData_t FirmwareUpdater::loadDDData(std::string path)
     const std::string rawBCDDevice = findLineInDD(path, "-bcdDevice");
     const std::string rawINQRevision = findLineInDD(path, "-INQRevision=");
 
-    // validating...
-    if (rawFeaturesLine.empty()) {
-        throw updater::UpdateExeception("cannot find line with matching search string ", "-features=");
+    DeviceDescriptionData_t dd = {};
+    if (!rawFeaturesLine.empty()) {
+        rawFeaturesLine.substr(10).copy(dd.generalFwFeatures, rawFeaturesLine.substr(10).length());
     }
 
-    if (rawDrvStrengths.empty()) {
-        throw updater::UpdateExeception("cannot find line with matching search string ", "-drv_strengths=");
+    if (!rawDrvStrengths.empty()) {
+        rawDrvStrengths.substr(15).copy(dd.drvStrengths, rawDrvStrengths.substr(15).length());
     }
 
-    if (rawFirmwareRevision.empty()) {
-        throw updater::UpdateExeception("cannot find line with matching search string ", "-ATAFirmwareRevision=");
+    if (!rawFirmwareRevision.empty()) {
+        rawFirmwareRevision.substr(21).copy(dd.ataFirmwareRevision, rawFirmwareRevision.substr(21).length());
     }
 
-    if (rawBCDDevice.empty()) {
-        throw updater::UpdateExeception("cannot find line with matching search string ", "-bcdDevice");
+    if (!rawBCDDevice.empty()) {
+        rawBCDDevice.substr(11).copy(dd.bcdDevice, rawBCDDevice.substr(11).length());
     }
     
-    if (rawINQRevision.empty()) {
-        throw updater::UpdateExeception("cannot find line with matching search string ", "-INQRevision=");
+    if (!rawINQRevision.empty()) {
+        rawINQRevision.substr(13).copy(dd.inqRevision, rawINQRevision.substr(13).length());
     }
-
-    // construct well-formed data
-    DeviceDescriptionData_t dd = {};
-
-    // copies everything after '-<flag>='
-    rawFeaturesLine.substr(10).copy(dd.generalFwFeatures, rawFeaturesLine.substr(10).length());
-    rawDrvStrengths.substr(15).copy(dd.drvStrengths, rawDrvStrengths.substr(15).length());
-    rawFirmwareRevision.substr(21).copy(dd.ataFirmwareRevision, rawFirmwareRevision.substr(21).length());
-    rawBCDDevice.substr(11).copy(dd.bcdDevice, rawBCDDevice.substr(11).length());
-    rawINQRevision.substr(13).copy(dd.inqRevision, rawINQRevision.substr(13).length());
 
     return dd;
 }

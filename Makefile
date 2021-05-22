@@ -1,7 +1,7 @@
 #Target
 TARGET			= hyp-fw-upgrader
 # Flags
-CXXFLAGS		= -std=c++11 -O2 -MD -Wall -Wextra -g -fPIC
+CXXFLAGS		= -std=c++17 -O2 -MD -Wall -Wextra -g -fPIC
 DEFINES         = -D__KERNEL__ -D__LINUX__
 # Compiler
 CXX				= g++
@@ -10,6 +10,8 @@ CXX				= g++
 BUILD_DIR		= ./build
 
 CFLAGS			= -I. -Iinclude -Isrc/include -I$(ROOT)/common
+
+LFLAGS =  -lstdc++fs
 
 # Files
 SOURCES			+= \
